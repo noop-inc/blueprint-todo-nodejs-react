@@ -52,7 +52,7 @@ const externalUrlToImageId = async externalUrl => {
   return await uploadObject({ buffer, mimetype })
 }
 
-const ImageIdSchema = z.string().describe('Unique identifier for image linked to todo. Do not expose to end users. Use to identify links between todos and images.')
+const ImageIdSchema = z.string().describe('Unique identifier for image linked to todo. Includes file extension of image as suffix. Do not expose to end users. Use to identify links between todos and images.')
 
 const TodoSchema = {
   id: z.string().describe('Unique identifier for todo. Do not expose to end users. Use to identify links between todos and images.'),
@@ -189,7 +189,7 @@ const mcpTools = [
       description: 'Create todo and create linked images',
       inputSchema: {
         description: TodoSchema.description,
-        images: z.array(z.string().describe('External URL for image linked to todo.')).min(1).max(6).optional().describe('List of external URLs for images linked to todo. If no external URLs are provided, select a count between 0 and 3 (inclusive) of relevant images from `https://images.unsplash.com` appended with `w=480&h=360&fit=crop&fm=webp&auto=compress` as the query string value.')
+        images: z.array(z.string().describe('External URL for image linked to todo.')).min(1).max(6).optional().describe('List of external URLs for images linked to todo. If no external URLs are provided, select between 0 and 3 (inclusive) relevant images from `https://images.unsplash.com` with the appended query string `?w=400&h=300&fit=crop&fm=webp&auto=compress`.')
       },
       outputSchema: TodoSchema,
       annotations: {
