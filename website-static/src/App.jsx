@@ -210,7 +210,7 @@ const App = () => {
                     </div>
                   </div>
                   {
-                    images && images.length &&
+                    images && !!images?.length &&
                       <div
                         className='image-preview-grid'
                       >
@@ -297,7 +297,7 @@ const App = () => {
                   </div>
                   <div className='todo-form-row'>
                     <label htmlFor='form-file'>
-                      Attach up to 6 images, 1MB max each (optional)
+                      Attach up to 6 images, 100KB max each (optional)
                     </label>
                     <input
                       id='form-file'
@@ -321,7 +321,7 @@ const App = () => {
                         <label
                           className='form-error'
                         >
-                          Images must be under 1MB
+                          Images must be under 100KB
                         </label>
                     }
                     {

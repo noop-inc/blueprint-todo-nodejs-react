@@ -3,7 +3,6 @@ import multer from 'multer'
 import morgan from 'morgan'
 import { lookup } from 'mime-types'
 import cors from 'cors'
-
 import { scanTable, getItem, putItem, deleteItem } from './dynamodb.js'
 import { getObject, uploadObject, deleteObject } from './s3.js'
 
@@ -13,6 +12,7 @@ app.use(express.json())
 
 app.use(morgan((tokens, req, res) =>
   JSON.stringify({
+    event: 'api.request',
     method: tokens.method(req, res),
     url: tokens.url(req, res),
     status: parseFloat(tokens.status(req, res)),
@@ -21,10 +21,10 @@ app.use(morgan((tokens, req, res) =>
   })
 ))
 
-// Limit Uploads to 6 files, max size 1MB each per todo
+// Limit Uploads to 6 files, max size 100KB each per file
 const upload = multer({
   limits: {
-    fileSize: '1MB',
+    fileSize: 100 * 1024,
     files: 6
   }
 })
@@ -38,18 +38,40 @@ app.get('/favicon.ico', (req, res) => {
 //
 // Param `imageId` corresponds to the key of an image file in S3
 app.get('/api/images/:imageId', async (req, res) => {
-  const params = req.params
-  const imageId = params.imageId
-  const stream = await getObject(imageId)
-  const contentType = stream.headers['content-type'] || lookup(imageId)
-  res.setHeader('Content-Type', contentType)
-  stream.pipe(res)
+  try {
+    const params = req.params
+    const imageId = params.imageId
+    const response = await getObject(imageId)
+    const contentType = response.ContentType || lookup(imageId)
+    res.setHeader('Content-Type', contentType)
+    response.Body.pipe(res)
+  } catch (error) {
+    console.log(JSON.stringify({ event: 'api.image.get.error', error: error.message }))
+    if (!res.headersSent) {
+      res.status(500).json({
+        error: {
+          message: error.message || 'Error getting image'
+        }
+      })
+    }
+  }
 })
 
 // get all todos
 app.get('/api/todos', async (req, res) => {
-  const items = await scanTable()
-  res.json(items)
+  try {
+    const items = await scanTable()
+    res.json(items)
+  } catch (error) {
+    console.log(JSON.stringify({ event: 'api.todos.get.error', error: error.message }))
+    if (!res.headersSent) {
+      res.status(500).json({
+        error: {
+          message: error.message || 'Error getting todos'
+        }
+      })
+    }
+  }
 })
 
 // create new todo
@@ -60,32 +82,54 @@ app.get('/api/todos', async (req, res) => {
 // Files (req.files):
 //   images / type: File/Buffer / optional
 app.post('/api/todos', uploader, async (req, res) => {
-  const files = req?.files || []
-  // Uploads images to S3, returns array of S3 keys for uploaded files
-  const images = await Promise.all(
-    files.map(file => uploadObject(file))
-  )
-  const body = req.body
-  const description = body.description
-  const newTodo = {
-    description,
-    created: Date.now(),
-    completed: false
+  try {
+    const files = req?.files || []
+    // Uploads images to S3, returns array of S3 keys for uploaded files
+    const images = await Promise.all(
+      files.map(file => uploadObject(file))
+    )
+    const body = req.body
+    const description = body.description
+    const newTodo = {
+      description,
+      created: Date.now(),
+      completed: false
+    }
+    // If images were included with todo includes array of S3 keys for images with todo
+    if (images.length) newTodo.images = images
+    const item = await putItem(newTodo)
+    res.json(item)
+  } catch (error) {
+    console.log(JSON.stringify({ event: 'api.todos.create.error', error: error.message }))
+    if (!res.headersSent) {
+      res.status(500).json({
+        error: {
+          message: error.message || 'Error creating todo'
+        }
+      })
+    }
   }
-  // If images were included with todo includes array of S3 keys for images with todo
-  if (images.length) newTodo.images = images
-  const item = await putItem(newTodo)
-  res.json(item)
 })
 
 // get todo
 //
 // Param `todoId` corresponds to the id of a todo stored in DynamoDB
 app.get('/api/todos/:todoId', async (req, res) => {
-  const params = req.params
-  const todoId = params.todoId
-  const item = await getItem(todoId)
-  res.json(item)
+  try {
+    const params = req.params
+    const todoId = params.todoId
+    const item = await getItem(todoId)
+    res.json(item)
+  } catch (error) {
+    console.log(JSON.stringify({ event: 'api.todo.get.error', error: error.message }))
+    if (!res.headersSent) {
+      res.status(500).json({
+        error: {
+          message: error.message || 'Error getting todo'
+        }
+      })
+    }
+  }
 })
 
 // update todo
@@ -96,42 +140,72 @@ app.get('/api/todos/:todoId', async (req, res) => {
 //   description / type: String / optional
 //   completed / type: Boolean / optional
 app.put('/api/todos/:todoId', async (req, res) => {
-  const params = req.params
-  const todoId = params.todoId
-  const existingItem = await getItem(todoId)
-  const body = req.body
-  const newItem = { ...existingItem, ...body }
-  const item = await putItem(newItem)
-  res.json(item)
+  try {
+    const params = req.params
+    const todoId = params.todoId
+    const existingItem = await getItem(todoId)
+    const body = req.body
+    const newItem = { ...existingItem, ...body }
+    const item = await putItem(newItem)
+    res.json(item)
+  } catch (error) {
+    console.log(JSON.stringify({ event: 'api.todo.update.error', error: error.message }))
+    if (!res.headersSent) {
+      res.status(500).json({
+        error: {
+          message: error.message || 'Error updating todo'
+        }
+      })
+    }
+  }
 })
 
 // delete todo
 //
 // Param `todoId` corresponds to the id of a todo stored in DynamoDB
 app.delete('/api/todos/:todoId', async (req, res) => {
-  const params = req.params
-  const todoId = params.todoId
-  // Gets todo to be deleted from DynamoDB
-  const item = await getItem(todoId)
-  const images = item.images || []
-  // If todo has associated images in S3, then delete those images
-  await Promise.all([
-    deleteItem(todoId),
-    ...images.map(imageId => deleteObject(imageId))
-  ])
-  // Returned delete todo's id to indicate it was successfully deleted
-  res.json({ id: todoId })
+  try {
+    const params = req.params
+    const todoId = params.todoId
+    // Gets todo to be deleted from DynamoDB
+    const item = await getItem(todoId)
+    const images = item.images || []
+    // If todo has associated images in S3, then delete those images
+    await Promise.all([
+      deleteItem(todoId),
+      ...images.map(imageId => deleteObject(imageId))
+    ])
+    // Returned delete todo's id to indicate it was successfully deleted
+    res.json({ id: todoId })
+  } catch (error) {
+    console.log(JSON.stringify({ event: 'api.todo.delete.error', error: error.message }))
+    if (!res.headersSent) {
+      res.status(500).json({
+        error: {
+          message: error.message || 'Error deleting todo'
+        }
+      })
+    }
+  }
 })
 
 const port = 3000
-const server = app.listen(port, err =>
-  console[err ? 'error' : 'log'](err || `Server running on ${port}`)
-)
+const server = app.listen(port, error => {
+  if (error) {
+    console.log(JSON.stringify({ event: 'api.server.error', error: error.message }))
+  } else {
+    console.log(JSON.stringify({ event: 'api.server.running', port }))
+  }
+})
 
-process.once('SIGTERM', () => {
-  console.log('SIGTERM received')
-  server.close(err => {
-    console[err ? 'error' : 'log'](err || 'Server closed')
-    process.exit(err ? 1 : 0)
+process.once('SIGTERM', async () => {
+  console.log(JSON.stringify({ event: 'api.server.signal', signal: 'SIGTERM' }))
+  server.close(error => {
+    if (error) {
+      console.log(JSON.stringify({ event: 'api.server.closed.error', error: error.message }))
+    } else {
+      console.log(JSON.stringify({ event: 'api.server.closed' }))
+    }
+    process.exit(error ? 1 : 0)
   })
 })

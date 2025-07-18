@@ -1,13 +1,14 @@
 {
   "name": "blueprint-todo-nodejs-react",
   "private": true,
+  "type": "module",
   "engines": {
-    "node": ">= 16.0.0",
-    "npm": ">= 8.0.0"
+    "node": ">= 20.0.0",
+    "npm": ">= 10.0.0"
   },
   "scripts": {
-    "common-eslint": "eslint . --ext .js,.jsx,.cjs,.mjs --cache --cache-location node_modules/.cache/.eslintcache --ignore-path .gitignore",
-    "common-prettier": "prettier \"**/*.{htm,html,json,md,markdown,yml,yaml}\" --cache --ignore-path .gitignore",
+    "common-eslint": "eslint --cache --cache-location node_modules/.cache/.eslintcache",
+    "common-prettier": "prettier \"**/*.{css,htm,html,json,md,markdown,yml,yaml}\" --cache",
     "common-sequential": "concurrently --raw --max-processes 1",
     "fix": "npm run common-sequential -- npm:fix-*",
     "fix-eslint": "npm run common-eslint -- --fix",
@@ -18,31 +19,21 @@
   },
   "author": "Noop Inc <hello@noop.dev>",
   "devDependencies": {
-    "concurrently": "^8.2.1",
-    "eslint": "^8.48.0",
+    "@eslint/eslintrc": "^3.3.1",
+    "@eslint/js": "^9.31.0",
+    "concurrently": "^9.2.0",
+    "eslint": "^9.31.0",
     "eslint-config-standard": "^17.1.0",
     "eslint-config-standard-jsx": "^11.0.0",
-    "eslint-plugin-react": "^7.33.2",
-    "prettier": "^3.0.3"
+    "eslint-plugin-react": "^7.37.5",
+    "prettier": "^3.6.2"
   },
-  "eslintConfig": {
-    "root": true,
-    "env": {
-      "browser": true,
-      "node": true
+  "overrides": {
+    "eslint-config-standard": {
+      "eslint": "$eslint"
     },
-    "extends": [
-      "eslint:recommended",
-      "plugin:react/recommended",
-      "plugin:react/jsx-runtime",
-      "standard",
-      "standard-jsx"
-    ]
-  },
-  "prettier": {
-    "semi": false,
-    "singleQuote": true,
-    "trailingComma": "none",
-    "arrowParens": "avoid"
+    "eslint-config-standard-jsx": {
+      "eslint": "$eslint"
+    }
   }
 }
