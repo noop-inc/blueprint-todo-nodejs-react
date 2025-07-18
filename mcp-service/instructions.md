@@ -41,4 +41,4 @@ This server provides the ability to interface with a todo list. This todo list c
 - Fields marked "Do not expose to end users in client responses" should not be shown in UI unless required for linking.
 - If more than 6 images are provided, a descriptive error message will be returned.
 - If required fields are missing or invalid (e.g., description missing, too many images, image too large), a descriptive error message will be returned.
-- If a todo item or image is not found, a descriptive error message will be returned.
+- If todo item or image is not found, a descriptive error message will be returned.

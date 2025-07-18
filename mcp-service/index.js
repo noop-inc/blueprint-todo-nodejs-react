@@ -202,7 +202,7 @@ const mcpTools = {
   'create-todo': {
     config: {
       title: 'Create Todo Item',
-      description: 'Create todo item and linked images. Only `description` and `images` field can be provided. Returns created todo item and linked images.',
+      description: 'Create todo item and linked images. Only `description` and `images` fields can be provided. Returns created todo item and linked images.',
       inputSchema: {
         description: TodoSchema.description,
         images: z.array(z.string().describe('External URL for image linked to todo item.')).min(1).max(6).optional().describe('List of external URLs for images linked to todo item. If no external URLs are provided, select between 0 and 3 (inclusive) images from `https://images.unsplash.com` appended with the query string `?w=360&h=240&fit=crop&fm=webp&auto=compress`.')
@@ -218,7 +218,7 @@ const mcpTools = {
     },
     handler: async ({ description, images: files = [] }) => {
       if (files.length > 6) {
-        throw new Error('Cannot link more than 6 images to a todo item')
+        throw new Error('Cannot link more than 6 images to todo item')
       }
       const images = await Promise.all(
         files.map(async file => await externalUrlToImageId(file))
