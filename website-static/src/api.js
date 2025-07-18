@@ -1,16 +1,16 @@
-const throwResponseError = async (response) => {
+const throwError = async response => {
   if (response.headers.get('content-type') === 'application/json') {
     const body = await response.json()
-    throw new Error(`Error: ${body?.message || JSON.stringify(body)}`)
+    throw body
   } else {
     const body = await response.text()
-    throw new Error(`Error: ${body}`)
+    throw new Error(body)
   }
 }
 
 const handleFetch = async (...args) => {
   const response = await window.fetch(...args)
-  if (!response.ok) await throwResponseError(response)
+  if (!response.ok) await throwError(response)
   return response
 }
 
