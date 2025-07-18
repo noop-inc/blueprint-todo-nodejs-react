@@ -267,7 +267,7 @@ const mcpTools = {
       title: 'Delete Todo Item',
       description: 'Delete a todo item by id and its linked images. Returns a confirmation that the requested todo item and its linked images have been deleted.',
       inputSchema: { todoId: TodoSchema.id },
-      outputSchema: z.object({ id: TodoSchema.id, deleted: z.boolean() }),
+      outputSchema: { id: TodoSchema.id, deleted: z.boolean() },
       annotations: {
         destructiveHint: true,
         idempotentHint: false,
