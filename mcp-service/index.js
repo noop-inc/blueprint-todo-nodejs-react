@@ -56,14 +56,14 @@ const externalUrlToImageId = async externalUrl => {
   return await uploadObject({ buffer, mimetype })
 }
 
-const ImageIdSchema = z.string().describe('Randomly generated version 4 UUID to serve as identifier for image linked to todo item. Includes file extension of image as suffix. Do not expose to end users in client responses. Use to identify links between todo items and images. Cannot be updated after creation.')
+const ImageIdSchema = z.string().describe('Randomly generated version 4 UUID to serve as an identifier for an image linked to a todo item. Includes file extension of image as a suffix. A maximum of 6 images can be linked to a todo item. Do not expose to end users in client responses. Use to identify links between todo items and images. Cannot be updated after creation.')
 
 const TodoSchema = {
-  id: z.string().describe('Randomly generated version 4 UUID to serve as identifier for todo item. Do not expose to end users in client responses. Use to identify links between todo items and images. Cannot be updated after creation.'),
-  description: z.string().describe('Description of todo item. Can be updated after creation.'),
+  id: z.string().describe('Randomly generated version 4 UUID to serve as an identifier for the todo item. Do not expose to end users in client responses. Use to identify links between todo items and images. Cannot be updated after creation.'),
+  description: z.string().describe('Description of the todo item. Can be updated after creation.'),
   created: z.number().describe('Unix timestamp in milliseconds representing when the todo item was created in reference to the Unix Epoch. Cannot be updated after creation.'),
-  completed: z.boolean().default(false).describe('Completion status of todo item. Can be updated after creation.'),
-  images: z.array(ImageIdSchema).min(1).max(6).optional()
+  completed: z.boolean().default(false).describe('Completion status of the todo item. Can be updated after creation. Default: false.'),
+  images: z.array(ImageIdSchema).min(1).max(6).optional().describe('List of randomly generated version 4 UUIDs to serve as identifiers for images linked to the todo item. Includes file extension of image as a suffix. A maximum of 6 images can be linked to a todo item. Do not expose to end users in client responses. Use to identify links between todo items and images. Cannot be updated after creation. Optional.')
 }
 
 const jsonToText = json =>
@@ -147,7 +147,7 @@ const mcpTools = {
   'list-todos': {
     config: {
       title: 'List Todo Items',
-      description: 'List all todo items and linked images. Returns all todo items and linked images.',
+      description: 'List all todo items and their linked images. Returns all todo items and their linked images.',
       inputSchema: {},
       outputSchema: { items: z.array(z.object(TodoSchema)) },
       annotations: {
@@ -181,7 +181,7 @@ const mcpTools = {
   'get-todo': {
     config: {
       title: 'Get Todo Item',
-      description: 'Get todo item by id and linked images. Returns requested todo item and linked images.',
+      description: 'Get a todo item by id and its linked images. Returns the requested todo item and its linked images.',
       inputSchema: { todoId: TodoSchema.id },
       outputSchema: TodoSchema,
       annotations: {
@@ -202,10 +202,10 @@ const mcpTools = {
   'create-todo': {
     config: {
       title: 'Create Todo Item',
-      description: 'Create todo item and linked images. Only `description` and `images` fields can be provided. Returns created todo item and linked images.',
+      description: 'Create a todo item and its linked images. Only the `description` and `images` fields can be provided. Returns the created todo item and its linked images.',
       inputSchema: {
         description: TodoSchema.description,
-        images: z.array(z.string().describe('External URL for image linked to todo item.')).min(1).max(6).optional().describe('List of external URLs for images linked to todo item. If no external URLs are provided, select between 0 and 3 (inclusive) images from `https://images.unsplash.com` appended with the query string `?w=360&h=240&fit=crop&fm=webp&auto=compress`.')
+        images: z.array(z.string().describe('External URL for image linked to the todo item.')).min(1).max(6).optional().describe('List of external URLs for images linked to todo item. If no external URLs are provided, select between 0 and 3 (inclusive) images from `https://images.unsplash.com` appended with the query string `?w=360&h=240&fit=crop&fm=webp&auto=compress`.')
       },
       outputSchema: TodoSchema,
       annotations: {
@@ -238,7 +238,7 @@ const mcpTools = {
   'update-todo': {
     config: {
       title: 'Update Todo Item',
-      description: 'Update todo item by id. Only `description` and `completed` fields can be updated. Returns updated todo item and linked images.',
+      description: 'Update a todo item by id. Only `description` and the `completed` fields can be updated. Returns updated todo item and its linked images.',
       inputSchema: {
         todoId: TodoSchema.id,
         description: TodoSchema.description.optional(),
@@ -265,7 +265,7 @@ const mcpTools = {
   'delete-todo': {
     config: {
       title: 'Delete Todo Item',
-      description: 'Delete todo item by id and linked images. Returns confirmation that requested todo item and linked images have been deleted.',
+      description: 'Delete a todo item by id and its linked images. Returns a confirmation that the requested todo item and its linked images have been deleted.',
       inputSchema: { todoId: TodoSchema.id },
       outputSchema: z.object({ id: TodoSchema.id, deleted: z.boolean() }),
       annotations: {
@@ -307,7 +307,7 @@ const mcpTools = {
   'get-image': {
     config: {
       title: 'Get Image',
-      description: 'Get image by id and linked todo item. Returns requested image and linked todo item.',
+      description: 'Get an image by id and its linked todo item. Returns the requested image and its linked todo item.',
       inputSchema: { imageId: ImageIdSchema },
       outputSchema: TodoSchema,
       annotations: {
