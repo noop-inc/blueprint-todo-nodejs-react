@@ -11,7 +11,7 @@ components:
           destination: ./
         - run: npm ci --omit=dev
         - image: node:22-alpine
-          stage: server
+          stage: api-server
         - directory: /api-service
         - copy: /api-service
           from: main
@@ -45,11 +45,11 @@ components:
           destination: ./
         - run: npm ci --omit=dev
         - image: node:22-alpine
-          stage: server
+          stage: mcp-server
         - directory: /mcp-service
         - copy: /mcp-service
           from: main
-        - copy: [index.js, dynamodb.js, s3.js]
+        - copy: [index.js, instructions.md, dynamodb.js, s3.js]
     runtime:
       command: node index.js
       resources:
