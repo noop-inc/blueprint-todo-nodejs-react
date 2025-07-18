@@ -3,6 +3,8 @@ import multer from 'multer'
 import morgan from 'morgan'
 import { lookup } from 'mime-types'
 import cors from 'cors'
+import { Readable } from 'node:stream'
+import sharp from 'sharp'
 import { scanTable, getItem, putItem, deleteItem } from './dynamodb.js'
 import { getObject, uploadObject, deleteObject } from './s3.js'
 
@@ -21,12 +23,9 @@ app.use(morgan((tokens, req, res) =>
   })
 ))
 
-// Limit Uploads to 6 files, max size 100KB each per file
+// Limit Uploads to 6 files
 const upload = multer({
-  limits: {
-    fileSize: 100 * 1024,
-    files: 6
-  }
+  limits: { files: 6 }
 })
 const uploader = upload.array('image', 6)
 
@@ -86,7 +85,32 @@ app.post('/api/todos', uploader, async (req, res) => {
     const files = req?.files || []
     // Uploads images to S3, returns array of S3 keys for uploaded files
     const images = await Promise.all(
-      files.map(file => uploadObject(file))
+      files.map(async ({ buffer, mimetype, originalname }) => {
+        if (!mimetype.startsWith('image/')) {
+          throw new Error(`Invalid content type for image: ${originalname}. Expected image/* but got ${mimetype}.`)
+        }
+
+        const metadata = await sharp(buffer).metadata()
+        const convertFormat = metadata.type !== 'webp'
+        const convertSize = (metadata.height > 640) || (metadata.width > 640)
+
+        let transformer
+        if (convertSize || convertFormat) {
+          transformer = sharp()
+          if (convertSize) {
+            transformer = transformer.resize({ width: 640, height: 640, fit: sharp.fit.inside })
+          }
+          if (convertFormat) {
+            transformer = transformer.toFormat('webp')
+          }
+        }
+
+        const readableStream = Readable.from(buffer)
+        return await uploadObject({
+          buffer: transformer ? readableStream.pipe(transformer) : readableStream,
+          mimetype: 'image/webp'
+        })
+      })
     )
     const body = req.body
     const description = body.description

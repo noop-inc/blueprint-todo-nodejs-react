@@ -4,9 +4,11 @@ import { lookup } from 'mime-types'
 import cors from 'cors'
 import { z } from 'zod'
 import { readFile } from 'node:fs/promises'
+import { Readable } from 'node:stream'
 import { URL } from 'node:url'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
+import sharp from 'sharp'
 import { scanTable, getItem, putItem, deleteItem } from './dynamodb.js'
 import { getObject, uploadObject, deleteObject } from './s3.js'
 
@@ -43,17 +45,29 @@ const externalUrlToImageId = async externalUrl => {
   if (!mimetype.startsWith('image/')) {
     throw new Error(`Invalid content type for image at URL: ${externalUrl}. Expected image/* but got ${mimetype}.`)
   }
-  const oneHundredKBinBytes = 100 * 1024
-  const contentLength = response.headers.get('content-length')
-  if (contentLength && parseInt(contentLength) > oneHundredKBinBytes) {
-    throw new Error(`Image at URL: ${externalUrl} exceeds size limit of 100KB`)
-  }
+
   const arrayBuffer = await response.arrayBuffer()
   const buffer = Buffer.from(arrayBuffer)
-  if (buffer.byteLength > oneHundredKBinBytes) {
-    throw new Error(`Image at URL: ${externalUrl} exceeds size limit of 100KB`)
+  const metadata = await sharp(buffer).metadata()
+  const convertFormat = metadata.type !== 'webp'
+  const convertSize = (metadata.height > 640) || (metadata.width > 640)
+
+  let transformer
+  if (convertSize || convertFormat) {
+    transformer = sharp()
+    if (convertSize) {
+      transformer = transformer.resize({ width: 640, height: 640, fit: sharp.fit.inside })
+    }
+    if (convertFormat) {
+      transformer = transformer.toFormat('webp')
+    }
   }
-  return await uploadObject({ buffer, mimetype })
+
+  const readableStream = Readable.from(buffer)
+  return await uploadObject({
+    buffer: transformer ? readableStream.pipe(transformer) : readableStream,
+    mimetype: 'image/webp'
+  })
 }
 
 const ImageIdSchema = z.string().describe('Randomly generated version 4 UUID to serve as an identifier for an image linked to a todo item. Includes file extension of image as a suffix. A maximum of 6 images can be linked to a todo item. Do not expose to end users in client responses. Use to identify links between todo items and images. Cannot be updated after creation.')
@@ -92,13 +106,38 @@ const structureTodoItemContent = item =>
 
 const structureImageContent = async imageId => {
   const response = await getObject(imageId)
-  const contentType = response.ContentType || lookup(imageId)
   const chunks = []
   for await (const chunk of response.Body) {
     chunks.push(chunk)
   }
   const buffer = Buffer.concat(chunks)
-  const base64 = buffer.toString('base64')
+  let base64
+
+  const metadata = await sharp(buffer).metadata()
+
+  const convertFormat = metadata.type !== 'webp'
+  const convertSize = (metadata.height > 160) || (metadata.width > 160)
+
+  let transformer
+  if (convertSize || convertFormat) {
+    transformer = sharp()
+    if (convertSize) {
+      transformer = transformer.resize({ width: 160, height: 160, fit: sharp.fit.inside })
+    }
+    if (convertFormat) {
+      transformer = transformer.toFormat('webp')
+    }
+    const readableStream = Readable.from(buffer)
+    const chunks = []
+    for await (const chunk of readableStream.pipe(transformer)) {
+      chunks.push(chunk)
+    }
+    const converted = Buffer.concat(chunks)
+    base64 = converted.toString('base64')
+  } else {
+    base64 = buffer.toString('base64')
+  }
+
   return [
     {
       type: 'text',
@@ -110,7 +149,7 @@ const structureImageContent = async imageId => {
     {
       type: 'image',
       data: base64,
-      mimeType: contentType,
+      mimeType: 'image/webp',
       annotations: {
         audience: ['user', 'assistant']
       }
@@ -205,7 +244,7 @@ const mcpTools = {
       description: 'Create a todo item and its linked images. Only the `description` and `images` fields can be provided. Returns the created todo item and its linked images.',
       inputSchema: {
         description: TodoSchema.description,
-        images: z.array(z.string().describe('External URL for image linked to the todo item. Image must be smaller than 100KB.')).min(1).max(6).optional().describe('List of external URLs for images linked to todo item. If no external URLs are provided, select between 0 and 6 (inclusive) images from `https://images.unsplash.com` appended with the query string `?w=640&h=360&fit=crop&fm=webp&auto=compress`. Only select images from `https://images.unsplash.com` that are relevant to the provided `description` field. If no relevant images exist, do not provide any images from Unsplash.')
+        images: z.array(z.string().describe('External URL for image linked to the todo item.')).min(1).max(6).optional().describe('List of external URLs for images linked to todo item. If no external URLs are provided, select between 0 and 6 (inclusive) images from `https://images.unsplash.com`. Only select images from `https://images.unsplash.com` that are relevant to the provided `description` field. If no relevant images exist, do not provide any images from Unsplash.')
       },
       outputSchema: TodoSchema,
       annotations: {

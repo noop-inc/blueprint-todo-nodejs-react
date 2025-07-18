@@ -1,8 +1,6 @@
 export const handleFormatImages = (newImages, existingImages) => {
-  const filterValidSize = [...newImages].filter(file => file.size <= 1000000)
-  const nextImageSize = newImages.length !== filterValidSize.length
-  const nextImageCount = (existingImages.length + filterValidSize.length) > 6
-  const sliceLength = filterValidSize.slice(0, 6 - existingImages.length)
+  const nextImageCount = (existingImages.length + [...newImages].length) > 6
+  const sliceLength = [...newImages].slice(0, 6 - existingImages.length)
   const formattedFiles = sliceLength.map(file => ({
     file,
     key: window.crypto.getRandomValues(new Uint32Array(1))[0],
@@ -10,7 +8,6 @@ export const handleFormatImages = (newImages, existingImages) => {
   }))
   const nextImages = [...existingImages, ...formattedFiles]
   return {
-    nextImageSize,
     nextImageCount,
     nextImages
   }

@@ -12,17 +12,14 @@ const App = () => {
   const imageInput = useRef(null)
   const [invalidDescription, setInvalidDescription] = useState(false)
   const [invalidImageCount, setInvalidImageCount] = useState(false)
-  const [invalidImageSize, setInvalidImageSize] = useState(false)
   const [enlargedImage, setEnlargedImage] = useState(null)
   const [editId, setEditId] = useState(null)
 
   const assignImages = () => {
     const {
-      nextImageSize,
       nextImageCount,
       nextImages
     } = handleFormatImages(imageInput.current.files, formImages)
-    setInvalidImageSize(nextImageSize)
     setInvalidImageCount(nextImageCount)
     setFormImages(nextImages)
     imageInput.current.value = null
@@ -31,7 +28,6 @@ const App = () => {
   const removeImage = (e, idx) => {
     e.preventDefault()
     setInvalidImageCount(false)
-    setInvalidImageSize(false)
     setFormImages(formImages => formImages.filter((_, i) => i !== idx))
   }
 
@@ -297,7 +293,7 @@ const App = () => {
                   </div>
                   <div className='todo-form-row'>
                     <label htmlFor='form-file'>
-                      Attach up to 6 images, 100KB max each (optional)
+                      Attach up to 6 images (optional)
                     </label>
                     <input
                       id='form-file'
@@ -314,14 +310,6 @@ const App = () => {
                           className='form-error'
                         >
                           Maximum of 6 images can be attached
-                        </label>
-                    }
-                    {
-                      !!invalidImageSize &&
-                        <label
-                          className='form-error'
-                        >
-                          Images must be under 100KB
                         </label>
                     }
                     {
