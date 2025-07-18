@@ -205,7 +205,7 @@ const mcpTools = {
       description: 'Create a todo item and its linked images. Only the `description` and `images` fields can be provided. Returns the created todo item and its linked images.',
       inputSchema: {
         description: TodoSchema.description,
-        images: z.array(z.string().describe('External URL for image linked to the todo item. Image must be smaller than 100KB.')).min(1).max(6).optional().describe('List of external URLs for images linked to todo item. If no external URLs are provided, select between 0 and 3 (inclusive) images from `https://images.unsplash.com` appended with the query string `?w=360&h=240&fit=crop&fm=webp&auto=compress`.')
+        images: z.array(z.string().describe('External URL for image linked to the todo item. Image must be smaller than 100KB.')).min(1).max(6).optional().describe('List of external URLs for images linked to todo item. If no external URLs are provided, select between 0 and 6 (inclusive) images from `https://images.unsplash.com` appended with the query string `?w=640&h=360&fit=crop&fm=webp&auto=compress`. Only select images from `https://images.unsplash.com` that are relevant to the provided `description` field. If no relevant images exist, do not provide any images from Unsplash.')
       },
       outputSchema: TodoSchema,
       annotations: {

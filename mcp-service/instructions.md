@@ -30,15 +30,15 @@ This server provides the ability to interface with a todo list. This todo list c
 ## Tools
 
 - `list-todos`: Requires no input. Returns a list of all todo items and their linked images.
-- `get-todo`: Requires todo item id as input. Returns requested todo item and its linked images.
-- `create-todo`: Requires description as input. Can optionally include a list of up to 6 external URLs for images. Each image must be smaller than 100KB. If no external URLs are provided, select between 0 and 3 (inclusive) images from `https://images.unsplash.com` appended with the query string `?w=360&h=240&fit=crop&fm=webp&auto=compress`. Returns created todo item and linked images.
-- `update-todo`: Requires todo item id as input. Can optionally include an updated `description` and/or `completed` value. Returns updated todo item and linked images.
-- `delete-todo`: Requires todo item id as input. Deletes the requested todo item and its linked images. Returns confirmation that the requested todo item and its linked images have been deleted.
-- `get-image`: Requires image id as input. Returns requested image and linked todo item.
+- `get-todo`: Requires atodo item id as input. Returns the requested todo item and its linked images.
+- `create-todo`: Requires a description as input. Can optionally include a list of up to 6 external URLs for images. Each image must be smaller than 100KB. If no external URLs are provided, select between 0 and 6 (inclusive) images from `https://images.unsplash.com` appended with the query string `?w=640&h=360&fit=crop&fm=webp&auto=compress`. Only select images from `https://images.unsplash.com` that are relevant to the provided `description` field. If no relevant images exist, do not provide any images from Unsplash. Returns the created todo item and its linked images.
+- `update-todo`: Requires a todo item id as input. Can optionally include an updated `description` and/or `completed` value. Returns the updated todo item and its linked images.
+- `delete-todo`: Requires a todo item id as input. Deletes the requested todo item and its linked images. Returns a confirmation that the requested todo item and its linked images have been deleted.
+- `get-image`: Requires an image id as input. Returns the requested image and its linked todo item.
 
 **Note:**
 
-- Fields marked "Do not expose to end users in client responses" should not be shown in UI unless required for linking.
+- Fields marked "do not expose to end users in client responses" should not be shown in the UI unless required for linking.
 - If more than 6 images are provided, a descriptive error message will be returned.
 - If required fields are missing or invalid (e.g., description missing, too many images, image too large), a descriptive error message will be returned.
 - If a todo item or image is not found, a descriptive error message will be returned.
