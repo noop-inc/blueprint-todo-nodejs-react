@@ -3,10 +3,14 @@ import morgan from 'morgan'
 import { lookup } from 'mime-types'
 import cors from 'cors'
 import { z } from 'zod'
+import { readFile } from 'node:fs/promises'
+import { URL } from 'node:url'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { scanTable, getItem, putItem, deleteItem } from './dynamodb.js'
 import { getObject, uploadObject, deleteObject } from './s3.js'
+
+const instructions = await readFile(new URL('./instructions.md', import.meta.url), { encoding: 'utf-8' })
 
 const app = express()
 app.use(cors())
@@ -52,13 +56,13 @@ const externalUrlToImageId = async externalUrl => {
   return await uploadObject({ buffer, mimetype })
 }
 
-const ImageIdSchema = z.string().describe('Unique identifier for image linked to todo. Includes file extension of image as suffix. Do not expose to end users. Use to identify links between todos and images.')
+const ImageIdSchema = z.string().describe('Randomly generated version 4 UUID to serve as identifier for image linked to todo item. Includes file extension of image as suffix. Do not expose to end users in client responses. Use to identify links between todo items and images. Cannot be updated after creation.')
 
 const TodoSchema = {
-  id: z.string().describe('Unique identifier for todo. Do not expose to end users. Use to identify links between todos and images.'),
-  description: z.string().describe('Description of the todo.'),
-  created: z.number().describe('Unix timestamp in milliseconds representing when the todo was created.'),
-  completed: z.boolean().default(false).describe('Completion status of todo.'),
+  id: z.string().describe('Randomly generated version 4 UUID to serve as identifier for todo item. Do not expose to end users in client responses. Use to identify links between todo items and images. Cannot be updated after creation.'),
+  description: z.string().describe('Description of todo item. Can be updated after creation.'),
+  created: z.number().describe('Unix timestamp in milliseconds representing when the todo item was created in reference to the Unix Epoch. Cannot be updated after creation.'),
+  completed: z.boolean().default(false).describe('Completion status of todo item. Can be updated after creation.'),
   images: z.array(ImageIdSchema).min(1).max(6).optional()
 }
 
@@ -72,7 +76,7 @@ const structureTodoItemContent = item =>
   [
     {
       type: 'text',
-      text: `Below is todo ${item.id}`,
+      text: `Below is todo item ${item.id}`,
       annotations: {
         audience: ['assistant']
       }
@@ -123,9 +127,9 @@ const structureTodoItemAndImageContent = async item => {
   return content
 }
 
-const cbHandler = cd => async (...args) => {
+const handlerWrapper = handler => async (...args) => {
   try {
-    return await cd(...args)
+    return await handler(...args)
   } catch (error) {
     return {
       isError: true,
@@ -140,33 +144,32 @@ const cbHandler = cd => async (...args) => {
 }
 
 const mcpTools = {
-  listTodos: {
+  'list-todos': {
     config: {
-      title: 'List Todos',
-      description: 'List all todos and list linked images',
+      title: 'List Todo Items',
+      description: 'List all todo items and linked images. Returns all todo items and linked images.',
       inputSchema: {},
-      outputSchema: { todoItems: z.array(z.object(TodoSchema)) },
+      outputSchema: { items: z.array(z.object(TodoSchema)) },
       annotations: {
         destructiveHint: false,
         idempotentHint: true,
         openWorldHint: false,
         readOnlyHint: true,
-        title: 'List Todos'
+        title: 'List Todo Items'
       }
     },
-    cb: async () => {
-      const todoItems = await scanTable()
-      const structuredContent = { todoItems }
+    handler: async () => {
+      const items = await scanTable()
+      const structuredContent = { items }
       const content = []
-
-      if (todoItems.length) {
-        for (const item of todoItems) {
+      if (items.length) {
+        for (const item of items) {
           content.push(...(await structureTodoItemAndImageContent(item)))
         }
       } else {
         content.push({
           type: 'text',
-          text: 'There are no todos',
+          text: 'There are no todo items',
           annotations: {
             audience: ['assistant']
           }
@@ -175,10 +178,10 @@ const mcpTools = {
       return { content, structuredContent }
     }
   },
-  getTodo: {
+  'get-todo': {
     config: {
-      title: 'Get Todo',
-      description: 'Get todo by id and get linked images',
+      title: 'Get Todo Item',
+      description: 'Get todo item by id and linked images. Returns requested todo item and linked images.',
       inputSchema: { todoId: TodoSchema.id },
       outputSchema: TodoSchema,
       annotations: {
@@ -186,23 +189,23 @@ const mcpTools = {
         idempotentHint: true,
         openWorldHint: false,
         readOnlyHint: true,
-        title: 'Get Todo'
+        title: 'Get Todo Item'
       }
     },
-    cb: async ({ todoId }) => {
-      const todoItem = await getItem(todoId)
-      const structuredContent = todoItem
-      const content = await structureTodoItemAndImageContent(todoItem)
+    handler: async ({ todoId }) => {
+      const item = await getItem(todoId)
+      const structuredContent = item
+      const content = await structureTodoItemAndImageContent(item)
       return { content, structuredContent }
     }
   },
-  createTodo: {
+  'create-todo': {
     config: {
-      title: 'Create Todo',
-      description: 'Create todo and create linked images',
+      title: 'Create Todo Item',
+      description: 'Create todo item and linked images. Only `description` and `images` field can be provided. Returns created todo item and linked images.',
       inputSchema: {
         description: TodoSchema.description,
-        images: z.array(z.string().describe('External URL for image linked to todo.')).min(1).max(6).optional().describe('List of external URLs for images linked to todo. If no external URLs are provided, select between 0 and 3 (inclusive) relevant images from `https://images.unsplash.com` with the appended query string `?w=360&h=240&fit=crop&fm=webp&auto=compress`.')
+        images: z.array(z.string().describe('External URL for image linked to todo item.')).min(1).max(6).optional().describe('List of external URLs for images linked to todo item. If no external URLs are provided, select between 0 and 3 (inclusive) images from `https://images.unsplash.com` appended with the query string `?w=360&h=240&fit=crop&fm=webp&auto=compress`.')
       },
       outputSchema: TodoSchema,
       annotations: {
@@ -210,10 +213,13 @@ const mcpTools = {
         idempotentHint: false,
         openWorldHint: false,
         readOnlyHint: false,
-        title: 'Create Todo'
+        title: 'Create Todo Item'
       }
     },
-    cb: async ({ description, images: files = [] }) => {
+    handler: async ({ description, images: files = [] }) => {
+      if (files.length > 6) {
+        throw new Error('Cannot link more than 6 images to a todo item')
+      }
       const images = await Promise.all(
         files.map(async file => await externalUrlToImageId(file))
       )
@@ -223,16 +229,16 @@ const mcpTools = {
         completed: false
       }
       if (images.length) newTodo.images = images
-      const todoItem = await putItem(newTodo)
-      const structuredContent = todoItem
-      const content = await structureTodoItemAndImageContent(todoItem)
+      const item = await putItem(newTodo)
+      const structuredContent = item
+      const content = await structureTodoItemAndImageContent(item)
       return { content, structuredContent }
     }
   },
-  updateTodo: {
+  'update-todo': {
     config: {
-      title: 'Update Todo',
-      description: 'Update todo by id, only description and completed fields can be updated',
+      title: 'Update Todo Item',
+      description: 'Update todo item by id. Only `description` and `completed` fields can be updated. Returns updated todo item and linked images.',
       inputSchema: {
         todoId: TodoSchema.id,
         description: TodoSchema.description.optional(),
@@ -244,34 +250,35 @@ const mcpTools = {
         idempotentHint: false,
         openWorldHint: false,
         readOnlyHint: false,
-        title: 'Update Todo'
+        title: 'Update Todo Item'
       }
     },
-    cb: async ({ todoId, ...body }) => {
+    handler: async ({ todoId, ...body }) => {
       const existingItem = await getItem(todoId)
       const updatedItem = { ...existingItem, ...body }
-      const todoItem = await putItem(updatedItem)
-      const structuredContent = todoItem
-      const content = await structureTodoItemAndImageContent(todoItem)
+      const item = await putItem(updatedItem)
+      const structuredContent = item
+      const content = await structureTodoItemAndImageContent(item)
       return { content, structuredContent }
     }
   },
-  deleteTodo: {
+  'delete-todo': {
     config: {
-      title: 'Delete Todo',
-      description: 'Delete todo by id and delete linked images',
+      title: 'Delete Todo Item',
+      description: 'Delete todo item by id and linked images. Returns confirmation that requested todo item and linked images have been deleted.',
       inputSchema: { todoId: TodoSchema.id },
+      outputSchema: z.object({ id: TodoSchema.id, deleted: z.boolean() }),
       annotations: {
         destructiveHint: true,
         idempotentHint: false,
         openWorldHint: false,
         readOnlyHint: false,
-        title: 'Delete Todo'
+        title: 'Delete Todo Item'
       }
     },
-    cb: async ({ todoId }) => {
-      const todoItem = await getItem(todoId)
-      const images = todoItem.images || []
+    handler: async ({ todoId }) => {
+      const item = await getItem(todoId)
+      const images = item.images || []
       await Promise.all([
         deleteItem(todoId),
         ...images.map(imageId => deleteObject(imageId))
@@ -280,7 +287,7 @@ const mcpTools = {
         content: [
           {
             type: 'text',
-            text: `Todo ${todoId} has been deleted`,
+            text: `Todo item ${todoId} has been deleted`,
             annotations: {
               audience: ['assistant']
             }
@@ -292,15 +299,17 @@ const mcpTools = {
               audience: ['assistant']
             }
           }))
-        ]
+        ],
+        structuredContent: { id: todoId, deleted: true }
       }
     }
   },
-  getImage: {
+  'get-image': {
     config: {
       title: 'Get Image',
-      description: 'Get image by id and get linked todo',
+      description: 'Get image by id and linked todo item. Returns requested image and linked todo item.',
       inputSchema: { imageId: ImageIdSchema },
+      outputSchema: TodoSchema,
       annotations: {
         destructiveHint: false,
         idempotentHint: true,
@@ -309,12 +318,13 @@ const mcpTools = {
         title: 'Get Image'
       }
     },
-    cb: async ({ imageId }) => {
+    handler: async ({ imageId }) => {
       const content = await structureImageContent(imageId)
-      const todoItems = await scanTable()
-      const todoItem = todoItems.find(todoItem => todoItem.images?.includes(imageId))
-      content.push(...structureTodoItemContent(todoItem))
-      return { content }
+      const items = await scanTable()
+      const item = items.find(item => item.images?.includes(imageId))
+      const structuredContent = item
+      content.push(...structureTodoItemContent(item))
+      return { content, structuredContent }
     }
   }
 }
@@ -323,13 +333,19 @@ const mcpServers = new Set()
 const mcpTransports = new Set()
 
 const getServerAndTransport = () => {
-  const mcpServer = new McpServer({
-    name: 'Todo Application MCP Server',
-    version: '0.0.0'
-  })
+  const mcpServer = new McpServer(
+    {
+      name: 'noop-todo-app-mcp-server',
+      title: 'Noop Todo App MCP Server',
+      version: '0.0.0'
+    },
+    {
+      instructions
+    }
+  )
   mcpServers.add(mcpServer)
-  for (const [name, { config, cb }] of Object.entries(mcpTools)) {
-    mcpServer.registerTool(name, config, cbHandler(cb))
+  for (const [name, { config, handler }] of Object.entries(mcpTools)) {
+    mcpServer.registerTool(name, config, handlerWrapper(handler))
   }
   const mcpTransport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined

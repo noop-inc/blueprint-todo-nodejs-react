@@ -3,8 +3,8 @@ const throwError = async response => {
     const body = await response.json()
     throw body
   } else {
-    const body = await response.text()
-    throw new Error(body)
+    const message = await response.text()
+    throw new Error(message)
   }
 }
 

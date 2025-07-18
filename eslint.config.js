@@ -1,4 +1,6 @@
 import js from '@eslint/js'
+import json from '@eslint/json'
+import markdown from '@eslint/markdown'
 import reactPlugin from 'eslint-plugin-react'
 import { FlatCompat } from '@eslint/eslintrc'
 import { fileURLToPath, URL } from 'node:url'
@@ -12,9 +14,6 @@ export default [
       '**/*.css',
       '**/*.htm',
       '**/*.html',
-      '**/*.json',
-      '**/*.md',
-      '**/*.markdown',
       '**/*.yml',
       '**/*.yaml'
     ]
@@ -55,5 +54,21 @@ export default [
     rules: {
       'import/extensions': ['error', 'always', { ignorePackages: true }]
     }
-  }
+  },
+  {
+    files: ['**/*.json'],
+    ignores: ['**/package-lock.json', '**/jsconfig.json'],
+    language: 'json/json',
+    ...json.configs.recommended
+  },
+  {
+    files: ['**/jsconfig.json'],
+    language: 'json/jsonc',
+    ...json.configs.recommended
+  },
+  ...markdown.configs.recommended
+    .map(config => ({
+      ...config,
+      files: ['**/*.md', '**/*.markdown']
+    }))
 ]
