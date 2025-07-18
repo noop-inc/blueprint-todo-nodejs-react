@@ -123,10 +123,25 @@ const structureTodoItemAndImageContent = async item => {
   return content
 }
 
-const mcpTools = [
-  [
-    'list-todos',
-    {
+const cbHandler = cd => async (...args) => {
+  try {
+    return await cd(...args)
+  } catch (error) {
+    return {
+      isError: true,
+      content: [
+        {
+          type: 'text',
+          text: `Error: ${error.message}`
+        }
+      ]
+    }
+  }
+}
+
+const mcpTools = {
+  listTodos: {
+    config: {
       title: 'List Todos',
       description: 'List all todos and list linked images',
       inputSchema: {},
@@ -139,7 +154,7 @@ const mcpTools = [
         title: 'List Todos'
       }
     },
-    async () => {
+    cb: async () => {
       const todoItems = await scanTable()
       const structuredContent = { todoItems }
       const content = []
@@ -159,10 +174,9 @@ const mcpTools = [
       }
       return { content, structuredContent }
     }
-  ],
-  [
-    'get-todo',
-    {
+  },
+  getTodo: {
+    config: {
       title: 'Get Todo',
       description: 'Get todo by id and get linked images',
       inputSchema: { todoId: TodoSchema.id },
@@ -175,21 +189,20 @@ const mcpTools = [
         title: 'Get Todo'
       }
     },
-    async ({ todoId }) => {
+    cb: async ({ todoId }) => {
       const todoItem = await getItem(todoId)
       const structuredContent = todoItem
       const content = await structureTodoItemAndImageContent(todoItem)
       return { content, structuredContent }
     }
-  ],
-  [
-    'create-todo',
-    {
+  },
+  createTodo: {
+    config: {
       title: 'Create Todo',
       description: 'Create todo and create linked images',
       inputSchema: {
         description: TodoSchema.description,
-        images: z.array(z.string().describe('External URL for image linked to todo.')).min(1).max(6).optional().describe('List of external URLs for images linked to todo. If no external URLs are provided, select between 0 and 3 (inclusive) relevant images from `https://images.unsplash.com` with the appended query string `?w=400&h=300&fit=crop&fm=webp&auto=compress`.')
+        images: z.array(z.string().describe('External URL for image linked to todo.')).min(1).max(6).optional().describe('List of external URLs for images linked to todo. If no external URLs are provided, select between 0 and 3 (inclusive) relevant images from `https://images.unsplash.com` with the appended query string `?w=360&h=240&fit=crop&fm=webp&auto=compress`.')
       },
       outputSchema: TodoSchema,
       annotations: {
@@ -200,7 +213,7 @@ const mcpTools = [
         title: 'Create Todo'
       }
     },
-    async ({ description, images: files = [] }) => {
+    cb: async ({ description, images: files = [] }) => {
       const images = await Promise.all(
         files.map(async file => await externalUrlToImageId(file))
       )
@@ -215,10 +228,9 @@ const mcpTools = [
       const content = await structureTodoItemAndImageContent(todoItem)
       return { content, structuredContent }
     }
-  ],
-  [
-    'update-todo',
-    {
+  },
+  updateTodo: {
+    config: {
       title: 'Update Todo',
       description: 'Update todo by id, only description and completed fields can be updated',
       inputSchema: {
@@ -235,7 +247,7 @@ const mcpTools = [
         title: 'Update Todo'
       }
     },
-    async ({ todoId, ...body }) => {
+    cb: async ({ todoId, ...body }) => {
       const existingItem = await getItem(todoId)
       const updatedItem = { ...existingItem, ...body }
       const todoItem = await putItem(updatedItem)
@@ -243,10 +255,9 @@ const mcpTools = [
       const content = await structureTodoItemAndImageContent(todoItem)
       return { content, structuredContent }
     }
-  ],
-  [
-    'delete-todo',
-    {
+  },
+  deleteTodo: {
+    config: {
       title: 'Delete Todo',
       description: 'Delete todo by id and delete linked images',
       inputSchema: { todoId: TodoSchema.id },
@@ -258,7 +269,7 @@ const mcpTools = [
         title: 'Delete Todo'
       }
     },
-    async ({ todoId }) => {
+    cb: async ({ todoId }) => {
       const todoItem = await getItem(todoId)
       const images = todoItem.images || []
       await Promise.all([
@@ -284,10 +295,9 @@ const mcpTools = [
         ]
       }
     }
-  ],
-  [
-    'get-image',
-    {
+  },
+  getImage: {
+    config: {
       title: 'Get Image',
       description: 'Get image by id and get linked todo',
       inputSchema: { imageId: ImageIdSchema },
@@ -299,15 +309,15 @@ const mcpTools = [
         title: 'Get Image'
       }
     },
-    async ({ imageId }) => {
+    cb: async ({ imageId }) => {
       const content = await structureImageContent(imageId)
       const todoItems = await scanTable()
       const todoItem = todoItems.find(todoItem => todoItem.images?.includes(imageId))
       content.push(...structureTodoItemContent(todoItem))
       return { content }
     }
-  ]
-]
+  }
+}
 
 const mcpServers = new Set()
 const mcpTransports = new Set()
@@ -315,34 +325,17 @@ const mcpTransports = new Set()
 const getServerAndTransport = () => {
   const mcpServer = new McpServer({
     name: 'Todo Application MCP Server',
-    version: '1.0.0'
+    version: '0.0.0'
   })
   mcpServers.add(mcpServer)
-  for (const mcpTool of mcpTools) {
-    mcpServer.registerTool(
-      ...mcpTool.slice(0, 2),
-      async (...args) => {
-        try {
-          return await mcpTool.at(-1)(...args)
-        } catch (error) {
-          return {
-            isError: true,
-            content: [
-              {
-                type: 'text',
-                text: `Error: ${error.message}`
-              }
-            ]
-          }
-        }
-      }
-    )
+  for (const [name, { config, cb }] of Object.entries(mcpTools)) {
+    mcpServer.registerTool(name, config, cbHandler(cb))
   }
   const mcpTransport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined
   })
   mcpTransports.add(mcpTransport)
-  const cleanup = async () => {
+  const mcpCleanup = async () => {
     console.log(JSON.stringify({ event: 'mcp.request.close' }))
     try {
       await mcpTransport.close()
@@ -357,13 +350,13 @@ const getServerAndTransport = () => {
       console.log(JSON.stringify({ event: 'mcp.server.close.error', error: error.message || `${error}` }))
     }
   }
-  return { mcpServer, mcpTransport, cleanup }
+  return { mcpServer, mcpTransport, mcpCleanup }
 }
 
 app.post('/mcp', async (req, res) => {
   try {
-    const { mcpServer, mcpTransport, cleanup } = getServerAndTransport()
-    res.once('close', cleanup)
+    const { mcpServer, mcpTransport, mcpCleanup } = getServerAndTransport()
+    res.once('close', mcpCleanup)
     await mcpServer.connect(mcpTransport)
     await mcpTransport.handleRequest(req, res, req.body)
   } catch (error) {
