@@ -7,8 +7,6 @@ import { scanTable, getItem, putItem, deleteItem } from './dynamodb.js'
 import { getObject, uploadObject, deleteObject } from './s3.js'
 import busboy from 'busboy'
 
-// sharp.concurrency(2)
-
 const streamToImageId = async stream => {
   const chunks = []
   for await (const chunk of stream) {
@@ -28,7 +26,7 @@ const streamToImageId = async stream => {
       transformer = transformer.resize({ width: 640, height: 640, fit: sharp.fit.inside, withoutEnlargement: true })
     }
     if (convertFormat) {
-      transformer = transformer.toFormat('webp')
+      transformer = transformer.toFormat('webp', { quality: 50, alphaQuality: 50 })
     }
   }
   return await uploadObject({
@@ -123,6 +121,7 @@ app.post('/api/todos', async (req, res) => {
       })
       bb.once('error', reject)
       bb.once('close', resolve)
+      req.pipe(bb)
     })
     const images = await Promise.all(imagePromises)
     const description = body.description

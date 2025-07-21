@@ -8,8 +8,6 @@ import sharp from 'sharp'
 import { scanTable, getItem, putItem, deleteItem } from './dynamodb.js'
 import { getObject, uploadObject, deleteObject } from './s3.js'
 
-// sharp.concurrency(2)
-
 const instructions = await readFile(new URL('./instructions.md', import.meta.url), { encoding: 'utf-8' })
 
 const externalUrlToImageId = async externalUrl => {
@@ -34,6 +32,7 @@ const externalUrlToImageId = async externalUrl => {
   const convertSize = (metadata.height > 640) || (metadata.width > 640)
   let transformer
   if (convertSize || convertFormat) {
+    console.log('CONVERTING IMAGE')
     transformer = sharp()
     if (convertSize) {
       transformer = transformer.resize({ width: 640, height: 640, fit: sharp.fit.inside, withoutEnlargement: true })
@@ -42,9 +41,8 @@ const externalUrlToImageId = async externalUrl => {
       transformer = transformer.toFormat('webp')
     }
   }
-  const readableStream = Readable.from(buffer)
   return await uploadObject({
-    stream: transformer ? readableStream.pipe(transformer) : readableStream,
+    stream: transformer ? Readable.from(buffer).pipe(transformer) : buffer,
     mimeType: `image/${(convertFormat || (metadata.format === 'webp')) ? 'webp' : 'avif'}`
   })
 }
@@ -212,8 +210,6 @@ const mcpTools = {
       }
     },
     handler: async ({ description, images: files = [] }) => {
-      const now = Date.now()
-      console.log('CREATE TODO START', now)
       if (files.length > 6) {
         throw new Error('Cannot link more than 6 images to todo item')
       }
@@ -227,11 +223,8 @@ const mcpTools = {
       }
       if (images.length) newTodo.images = images
       const item = await putItem(newTodo)
-      console.log('CREATE TODO END', now)
-      console.log('GET TODO START', now)
       const structuredContent = item
       const content = await structureTodoItemAndImageContent(item)
-      console.log('GET TODO END', now)
       return { content, structuredContent }
     }
   },
