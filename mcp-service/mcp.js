@@ -4,7 +4,6 @@ import { URL } from 'node:url'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import sharp from 'sharp'
-import { pipeline } from 'node:stream'
 import { scanTable, getItem, putItem, deleteItem } from './dynamodb.js'
 import { getObject, uploadObject, deleteObject } from './s3.js'
 
@@ -27,11 +26,7 @@ const externalUrlToImageId = async externalUrl => {
   const transformer = sharp()
     .resize({ width: 640, height: 640, fit: sharp.fit.inside, withoutEnlargement: true })
     .toFormat('avif')
-  const stream = pipeline(response.body, transformer, error => {
-    if (error) {
-      console.log(JSON.stringify({ event: 'mcp.upload.pipe.error', error: error.message || `${error}` }))
-    }
-  })
+  const stream = response.body.pipe(transformer)
   return await uploadObject({
     stream,
     mimeType: 'image/avif'
@@ -78,12 +73,7 @@ const structureImageContent = async imageId => {
   const transformer = sharp()
     .resize({ width: 160, height: 160, fit: sharp.fit.inside, withoutEnlargement: true })
     .toFormat('jpeg')
-  const stream = pipeline(response.Body, transformer, error => {
-    if (error) {
-      console.log(JSON.stringify({ event: 'mcp.image.pipe.error', error: error.message || `${error}` }))
-    }
-  })
-  for await (const chunk of stream) {
+  for await (const chunk of response.Body.pipe(transformer)) {
     chunks.push(chunk)
   }
   const buffer = Buffer.concat(chunks)

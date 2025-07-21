@@ -2,7 +2,6 @@ import express from 'express'
 import morgan from 'morgan'
 import cors from 'cors'
 import sharp from 'sharp'
-import { pipeline } from 'node:stream'
 import { scanTable, getItem, putItem, deleteItem } from './dynamodb.js'
 import { getObject, uploadObject, deleteObject } from './s3.js'
 import busboy from 'busboy'
@@ -36,22 +35,8 @@ app.get('/api/images/:imageId', async (req, res) => {
     const params = req.params
     const imageId = params.imageId
     const response = await getObject(imageId)
-    const transformer = sharp()
-      .resize({ width: 640, height: 640, fit: sharp.fit.inside, withoutEnlargement: true })
-      .toFormat('avif')
-    res.setHeader('Content-Type', 'image/avif')
-    pipeline(response.Body, transformer, res, error => {
-      if (error) {
-        console.log(JSON.stringify({ event: 'api.image.pipe.error', error: error.message || `${error}` }))
-        if (!res.headersSent) {
-          res.status(500).json({
-            error: {
-              message: error.message || 'Error piping image'
-            }
-          })
-        }
-      }
-    })
+    res.setHeader('Content-Type', response.contentType)
+    response.Body.pipe(res)
   } catch (error) {
     console.log(JSON.stringify({ event: 'api.image.get.error', error: error.message || `${error}` }))
     if (!res.headersSent) {
@@ -105,9 +90,7 @@ app.post('/api/todos', async (req, res) => {
         const transformer = sharp()
           .resize({ width: 640, height: 640, fit: sharp.fit.inside, withoutEnlargement: true })
           .toFormat('avif')
-        const stream = pipeline(file, transformer, error => {
-          if (error) reject(error)
-        })
+        const stream = file.pipe(transformer)
         imagePromises.push(uploadObject({
           stream,
           mimeType: 'image/avif'
@@ -116,10 +99,8 @@ app.post('/api/todos', async (req, res) => {
       bb.on('field', (name, value) => {
         body[name] = value
       })
-      pipeline(req, bb, error => {
-        if (error) return reject(error)
-        resolve()
-      })
+      bb.once('error', reject)
+      bb.once('close', resolve)
     })
     const images = await Promise.all(imagePromises)
     const description = body.description
