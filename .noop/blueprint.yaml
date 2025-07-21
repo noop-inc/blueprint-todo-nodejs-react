@@ -49,7 +49,7 @@ components:
         - directory: /mcp-service
         - copy: /mcp-service
           from: main
-        - copy: [dynamodb.js, index.js, instructions.md, mcp.js, s3.js]
+        - copy: [index.js, instructions.md, mcp.js, dynamodb.js, s3.js]
     runtime:
       command: node index.js
       resources:

@@ -92,7 +92,7 @@ app.post('/api/todos', uploader, async (req, res) => {
         throw new Error(`Invalid content type for image: ${originalname}. Expected image/* but got ${mimetype}.`)
       }
       const metadata = await sharp(buffer).metadata()
-      const convertFormat = metadata.type !== 'webp'
+      const convertFormat = !['avif', 'webp'].includes(metadata.type)
       const convertSize = (metadata.height > 640) || (metadata.width > 640)
       let transformer
       if (convertSize || convertFormat) {
@@ -101,13 +101,13 @@ app.post('/api/todos', uploader, async (req, res) => {
           transformer = transformer.resize({ width: 640, height: 640, fit: sharp.fit.inside })
         }
         if (convertFormat) {
-          transformer = transformer.toFormat('webp')
+          transformer = transformer.toFormat('avif')
         }
       }
       const readableStream = Readable.from(buffer)
       images.push(await uploadObject({
         buffer: transformer ? readableStream.pipe(transformer) : readableStream,
-        mimetype: 'image/webp'
+        mimetype: `image/${convertFormat ? 'avif' : metadata.type}`
       }))
     }
     const body = req.body
