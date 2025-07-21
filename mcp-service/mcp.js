@@ -8,8 +8,6 @@ import sharp from 'sharp'
 import { scanTable, getItem, putItem, deleteItem } from './dynamodb.js'
 import { getObject, uploadObject, deleteObject } from './s3.js'
 
-sharp.concurrency(1)
-
 const instructions = await readFile(new URL('./instructions.md', import.meta.url), { encoding: 'utf-8' })
 
 const externalUrlToImageId = async externalUrl => {
@@ -199,10 +197,9 @@ const mcpTools = {
       if (files.length > 6) {
         throw new Error('Cannot link more than 6 images to todo item')
       }
-      const images = []
-      for (const file of files) {
-        images.push(await externalUrlToImageId(file))
-      }
+      const images = await Promise.all(
+        files.map(async file => await externalUrlToImageId(file))
+      )
       const newTodo = {
         description,
         created: Date.now(),

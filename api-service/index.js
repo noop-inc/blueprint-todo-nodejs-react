@@ -6,8 +6,6 @@ import { scanTable, getItem, putItem, deleteItem } from './dynamodb.js'
 import { getObject, uploadObject, deleteObject } from './s3.js'
 import busboy from 'busboy'
 
-sharp.concurrency(1)
-
 const app = express()
 app.use(cors())
 app.use(express.json())
