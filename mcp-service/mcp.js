@@ -8,7 +8,7 @@ import sharp from 'sharp'
 import { scanTable, getItem, putItem, deleteItem } from './dynamodb.js'
 import { getObject, uploadObject, deleteObject } from './s3.js'
 
-sharp.concurrency(1)
+sharp.concurrency(2)
 
 const instructions = await readFile(new URL('./instructions.md', import.meta.url), { encoding: 'utf-8' })
 
@@ -28,6 +28,7 @@ const externalUrlToImageId = async externalUrl => {
   const buffer = Buffer.from(arrayBuffer)
   const metadata = await sharp(buffer).metadata()
   const convertFormat = !['avif', 'webp'].includes(metadata.type)
+  console.log(metadata, metadata.type, convertFormat)
   const convertSize = (metadata.height > 640) || (metadata.width > 640)
   let transformer
   if (convertSize || convertFormat) {

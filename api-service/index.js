@@ -7,7 +7,7 @@ import { scanTable, getItem, putItem, deleteItem } from './dynamodb.js'
 import { getObject, uploadObject, deleteObject } from './s3.js'
 import busboy from 'busboy'
 
-sharp.concurrency(1)
+sharp.concurrency(2)
 
 const streamToImageId = async stream => {
   const chunks = []
