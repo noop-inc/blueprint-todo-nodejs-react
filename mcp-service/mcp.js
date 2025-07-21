@@ -136,7 +136,7 @@ const handlerWrapper = handler => async (...args) => {
 }
 
 const mcpTools = {
-  'list-todos': {
+  listTodos: {
     config: {
       title: 'List Todo Items',
       description: 'List all todo items and their linked images. Returns all todo items and their linked images.',
@@ -170,7 +170,7 @@ const mcpTools = {
       return { content, structuredContent }
     }
   },
-  'get-todo': {
+  getTodo: {
     config: {
       title: 'Get Todo Item',
       description: 'Get a todo item by id and its linked images. Returns the requested todo item and its linked images.',
@@ -191,7 +191,7 @@ const mcpTools = {
       return { content, structuredContent }
     }
   },
-  'create-todo': {
+  createTodo: {
     config: {
       title: 'Create Todo Item',
       description: 'Create a todo item and its linked images. Only the `description` and `images` fields can be provided. Returns the created todo item and its linked images.',
@@ -227,7 +227,7 @@ const mcpTools = {
       return { content, structuredContent }
     }
   },
-  'update-todo': {
+  updateTodo: {
     config: {
       title: 'Update Todo Item',
       description: 'Update a todo item by id. Only `description` and the `completed` fields can be updated. Returns updated todo item and its linked images.',
@@ -254,7 +254,7 @@ const mcpTools = {
       return { content, structuredContent }
     }
   },
-  'delete-todo': {
+  deleteTodo: {
     config: {
       title: 'Delete Todo Item',
       description: 'Delete a todo item by id and its linked images. Returns a confirmation that the requested todo item and its linked images have been deleted.',
@@ -296,7 +296,7 @@ const mcpTools = {
       }
     }
   },
-  'get-image': {
+  getImage: {
     config: {
       title: 'Get Image',
       description: 'Get an image by id and its linked todo item. Returns the requested image and its linked todo item.',
