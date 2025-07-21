@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { readFile } from 'node:fs/promises'
 import { URL } from 'node:url'
+import { Readable } from 'node:stream'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import sharp from 'sharp'
@@ -27,7 +28,7 @@ const externalUrlToImageId = async externalUrl => {
     .resize({ width: 640, height: 640, fit: sharp.fit.inside, withoutEnlargement: true })
     .toFormat('avif')
   return await uploadObject({
-    stream: response.body.pipe(transformer),
+    stream: Readable.fromWeb(response.body).pipe(transformer),
     mimeType: 'image/avif'
   })
 }
