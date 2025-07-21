@@ -32,7 +32,6 @@ const externalUrlToImageId = async externalUrl => {
   const convertSize = (metadata.height > 640) || (metadata.width > 640)
   let transformer
   if (convertSize || convertFormat) {
-    console.log('CONVERTING IMAGE')
     transformer = sharp()
     if (convertSize) {
       transformer = transformer.resize({ width: 640, height: 640, fit: sharp.fit.inside, withoutEnlargement: true })
