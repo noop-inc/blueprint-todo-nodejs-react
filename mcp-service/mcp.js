@@ -26,9 +26,8 @@ const externalUrlToImageId = async externalUrl => {
   const transformer = sharp()
     .resize({ width: 640, height: 640, fit: sharp.fit.inside, withoutEnlargement: true })
     .toFormat('avif')
-  const stream = response.body.pipe(transformer)
   return await uploadObject({
-    stream,
+    stream: response.body.pipe(transformer),
     mimeType: 'image/avif'
   })
 }

@@ -90,9 +90,8 @@ app.post('/api/todos', async (req, res) => {
         const transformer = sharp()
           .resize({ width: 640, height: 640, fit: sharp.fit.inside, withoutEnlargement: true })
           .toFormat('avif')
-        const stream = file.pipe(transformer)
         imagePromises.push(uploadObject({
-          stream,
+          stream: file.pipe(transformer),
           mimeType: 'image/avif'
         }))
       })
