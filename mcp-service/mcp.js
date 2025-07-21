@@ -271,7 +271,7 @@ const mcpTools = {
       const images = item.images || []
       await Promise.all([
         deleteItem(todoId),
-        ...images.map(imageId => deleteObject(imageId))
+        ...images.map(async imageId => await deleteObject(imageId))
       ])
       return {
         content: [

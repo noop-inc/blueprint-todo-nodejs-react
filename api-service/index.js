@@ -206,7 +206,7 @@ app.delete('/api/todos/:todoId', async (req, res) => {
     // If todo has associated images in S3, then delete those images
     await Promise.all([
       deleteItem(todoId),
-      ...images.map(imageId => deleteObject(imageId))
+      ...images.map(async imageId => await deleteObject(imageId))
     ])
     // Returned delete todo's id to indicate it was successfully deleted
     res.json({ id: todoId })
