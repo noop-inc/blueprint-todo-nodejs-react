@@ -7,7 +7,7 @@ import { scanTable, getItem, putItem, deleteItem } from './dynamodb.js'
 import { getObject, uploadObject, deleteObject } from './s3.js'
 import busboy from 'busboy'
 
-sharp.concurrency(2)
+// sharp.concurrency(2)
 
 const streamToImageId = async stream => {
   const chunks = []
@@ -16,7 +16,10 @@ const streamToImageId = async stream => {
   }
   const buffer = Buffer.concat(chunks)
   const metadata = await sharp(buffer).metadata()
-  const convertFormat = !['avif', 'webp'].includes(metadata.type)
+  const convertFormat = !(
+    ['avif', 'webp'].includes(metadata.format) ||
+    ((metadata.format === 'heif') && (metadata.compression === 'av1'))
+  )
   const convertSize = (metadata.height > 640) || (metadata.width > 640)
   let transformer
   if (convertSize || convertFormat) {
@@ -28,10 +31,9 @@ const streamToImageId = async stream => {
       transformer = transformer.toFormat('webp')
     }
   }
-  const readableStream = Readable.from(buffer)
   return await uploadObject({
-    stream: transformer ? readableStream.pipe(transformer) : readableStream,
-    mimeType: `image/${convertFormat ? 'webp' : metadata.type}`
+    stream: transformer ? Readable.from(buffer).pipe(transformer) : buffer,
+    mimeType: `image/${(convertFormat || (metadata.format === 'webp')) ? 'webp' : 'avif'}`
   })
 }
 
