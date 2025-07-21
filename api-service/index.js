@@ -7,6 +7,8 @@ import { getObject, uploadObject, deleteObject } from './s3.js'
 import busboy from 'busboy'
 import compression from 'compression'
 
+sharp.concurrency(1)
+
 const app = express()
 app.use(compression())
 app.use(cors())
@@ -89,10 +91,10 @@ app.post('/api/todos', async (req, res) => {
         }
         const transformer = sharp()
           .resize({ width: 640, height: 640, fit: sharp.fit.inside, withoutEnlargement: true })
-          .toFormat('webp')
+          .toFormat('jpeg')
         imagePromises.push(uploadObject({
           stream: file.pipe(transformer),
-          mimeType: 'image/webp'
+          mimeType: 'image/jpeg'
         }))
       })
       bb.on('field', (name, value) => {

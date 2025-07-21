@@ -8,6 +8,8 @@ import sharp from 'sharp'
 import { scanTable, getItem, putItem, deleteItem } from './dynamodb.js'
 import { getObject, uploadObject, deleteObject } from './s3.js'
 
+sharp.concurrency(1)
+
 const instructions = await readFile(new URL('./instructions.md', import.meta.url), { encoding: 'utf-8' })
 
 const externalUrlToImageId = async externalUrl => {
@@ -24,10 +26,10 @@ const externalUrlToImageId = async externalUrl => {
   }
   const transformer = sharp()
     .resize({ width: 640, height: 640, fit: sharp.fit.inside, withoutEnlargement: true })
-    .toFormat('webp')
+    .toFormat('jpeg')
   return await uploadObject({
     stream: Readable.fromWeb(response.body).pipe(transformer),
-    mimeType: 'image/webp'
+    mimeType: 'image/jpeg'
   })
 }
 
@@ -182,7 +184,7 @@ const mcpTools = {
       description: 'Create a todo item and its linked images. Only the `description` and `images` fields can be provided. Returns the created todo item and its linked images.',
       inputSchema: {
         description: TodoSchema.description,
-        images: z.array(z.string().describe('External URL for image linked to the todo item.')).min(1).max(6).optional().describe('List of external URLs for images linked to todo item. If no external URLs are provided, select between 0 and 6 (inclusive) images from `https://images.unsplash.com` appended with the query string value `?w=640&h=640&fit=max&auto=compress&fm=webp`. Only select images from `https://images.unsplash.com` that are relevant to the provided `description` field. If no relevant images exist, do not provide any images from Unsplash.')
+        images: z.array(z.string().describe('External URL for image linked to the todo item.')).min(1).max(6).optional().describe('List of external URLs for images linked to todo item. If no external URLs are provided, select between 0 and 6 (inclusive) images from `https://images.unsplash.com` appended with the query string value `?w=640&h=640&fit=max&auto=compress&fm=jpg`. Only select images from `https://images.unsplash.com` that are relevant to the provided `description` field. If no relevant images exist, do not provide any images from Unsplash.')
       },
       outputSchema: TodoSchema,
       annotations: {
