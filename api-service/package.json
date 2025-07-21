@@ -12,11 +12,10 @@
     "@aws-sdk/client-s3": "^3.848.0",
     "@aws-sdk/lib-dynamodb": "^3.848.0",
     "@aws-sdk/lib-storage": "^3.848.0",
+    "busboy": "^1.6.0",
     "cors": "^2.8.5",
     "express": "^5.1.0",
-    "mime-types": "^3.0.1",
     "morgan": "^1.10.1",
-    "multer": "^2.0.2",
     "sharp": "^0.34.3"
   }
 }

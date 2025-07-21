@@ -10,7 +10,7 @@ This server provides the ability to interface with a todo list. This todo list c
 - `description`: Description of todo item. Can be updated after creation. Type: string.
 - `created`: Unix timestamp in milliseconds representing when the todo item was created in reference to the Unix Epoch. Cannot be updated after creation. Type: number.
 - `completed`: Completion status of todo item. Can be updated after creation. Type: boolean. Default: false.
-- `images`: List of randomly generated version 4 UUIDs to serve as identifiers for images linked to the todo item. Includes file extension of image as a suffix. A maximum of 6 images can be linked to a todo item. **Do not expose to end users in client responses.** Use to identify links between todo items and images. Cannot be updated after creation. Type: array of strings. Optional.
+- `images`: List of randomly generated version 4 UUIDs to serve as identifiers for images linked to the todo item. A maximum of 6 images can be linked to a todo item. **Do not expose to end users in client responses.** Use to identify links between todo items and images. Cannot be updated after creation. Type: array of strings. Optional.
 
 **Example Todo Item:**
 

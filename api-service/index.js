@@ -1,12 +1,11 @@
 import express from 'express'
-import multer from 'multer'
 import morgan from 'morgan'
-import { lookup } from 'mime-types'
 import cors from 'cors'
-import { Readable } from 'node:stream'
 import sharp from 'sharp'
+import { pipeline } from 'node:stream'
 import { scanTable, getItem, putItem, deleteItem } from './dynamodb.js'
 import { getObject, uploadObject, deleteObject } from './s3.js'
+import busboy from 'busboy'
 
 sharp.concurrency(1)
 
@@ -25,12 +24,6 @@ app.use(morgan((tokens, req, res) =>
   })
 ))
 
-// Limit Uploads to 6 files
-const upload = multer({
-  limits: { files: 6 }
-})
-const uploader = upload.array('image', 6)
-
 app.get('/favicon.ico', (req, res) => {
   res.status(204).end()
 })
@@ -43,11 +36,24 @@ app.get('/api/images/:imageId', async (req, res) => {
     const params = req.params
     const imageId = params.imageId
     const response = await getObject(imageId)
-    const contentType = response.ContentType || lookup(imageId)
-    res.setHeader('Content-Type', contentType)
-    response.Body.pipe(res)
+    const transformer = sharp()
+      .resize({ width: 640, height: 640, fit: sharp.fit.inside, withoutEnlargement: true })
+      .toFormat('avif')
+    res.setHeader('Content-Type', 'image/avif')
+    pipeline(response.Body, transformer, res, error => {
+      if (error) {
+        console.log(JSON.stringify({ event: 'api.image.pipe.error', error: error.message || `${error}` }))
+        if (!res.headersSent) {
+          res.status(500).json({
+            error: {
+              message: error.message || 'Error piping image'
+            }
+          })
+        }
+      }
+    })
   } catch (error) {
-    console.log(JSON.stringify({ event: 'api.image.get.error', error: error.message }))
+    console.log(JSON.stringify({ event: 'api.image.get.error', error: error.message || `${error}` }))
     if (!res.headersSent) {
       res.status(500).json({
         error: {
@@ -64,7 +70,7 @@ app.get('/api/todos', async (req, res) => {
     const items = await scanTable()
     res.json(items)
   } catch (error) {
-    console.log(JSON.stringify({ event: 'api.todos.get.error', error: error.message }))
+    console.log(JSON.stringify({ event: 'api.todos.get.error', error: error.message || `${error}` }))
     if (!res.headersSent) {
       res.status(500).json({
         error: {
@@ -82,35 +88,40 @@ app.get('/api/todos', async (req, res) => {
 //
 // Files (req.files):
 //   images / type: File/Buffer / optional
-app.post('/api/todos', uploader, async (req, res) => {
+app.post('/api/todos', async (req, res) => {
   try {
-    const files = req?.files || []
     // Uploads images to S3, returns array of S3 keys for uploaded files
-    const images = []
-    for (const { buffer, mimetype, originalname } of files) {
-      if (!mimetype.startsWith('image/')) {
-        throw new Error(`Invalid content type for image: ${originalname}. Expected image/* but got ${mimetype}.`)
-      }
-      const metadata = await sharp(buffer).metadata()
-      const convertFormat = !['avif', 'webp'].includes(metadata.type)
-      const convertSize = (metadata.height > 640) || (metadata.width > 640)
-      let transformer
-      if (convertSize || convertFormat) {
-        transformer = sharp()
-        if (convertSize) {
-          transformer = transformer.resize({ width: 640, height: 640, fit: sharp.fit.inside })
+    const imagePromises = []
+    const body = {}
+    const bb = busboy({
+      headers: req.headers,
+      limits: { files: 6 }
+    })
+    await new Promise((resolve, reject) => {
+      bb.on('file', (name, file, { filename, mimeType }) => {
+        if (!mimeType.startsWith('image/')) {
+          return reject(new Error(`Invalid content type for image: ${filename}. Expected image/* but got ${mimeType}.`))
         }
-        if (convertFormat) {
-          transformer = transformer.toFormat('avif')
-        }
-      }
-      const readableStream = Readable.from(buffer)
-      images.push(await uploadObject({
-        buffer: transformer ? readableStream.pipe(transformer) : readableStream,
-        mimetype: `image/${convertFormat ? 'avif' : metadata.type}`
-      }))
-    }
-    const body = req.body
+        const transformer = sharp()
+          .resize({ width: 640, height: 640, fit: sharp.fit.inside, withoutEnlargement: true })
+          .toFormat('avif')
+        const stream = pipeline(file, transformer, error => {
+          if (error) reject(error)
+        })
+        imagePromises.push(uploadObject({
+          stream,
+          mimeType: 'image/avif'
+        }))
+      })
+      bb.on('field', (name, value) => {
+        body[name] = value
+      })
+      pipeline(req, bb, error => {
+        if (error) return reject(error)
+        resolve()
+      })
+    })
+    const images = await Promise.all(imagePromises)
     const description = body.description
     const newTodo = {
       description,
@@ -122,7 +133,7 @@ app.post('/api/todos', uploader, async (req, res) => {
     const item = await putItem(newTodo)
     res.json(item)
   } catch (error) {
-    console.log(JSON.stringify({ event: 'api.todos.create.error', error: error.message }))
+    console.log(JSON.stringify({ event: 'api.todos.create.error', error: error.message || `${error}` }))
     if (!res.headersSent) {
       res.status(500).json({
         error: {
@@ -143,7 +154,7 @@ app.get('/api/todos/:todoId', async (req, res) => {
     const item = await getItem(todoId)
     res.json(item)
   } catch (error) {
-    console.log(JSON.stringify({ event: 'api.todo.get.error', error: error.message }))
+    console.log(JSON.stringify({ event: 'api.todo.get.error', error: error.message || `${error}` }))
     if (!res.headersSent) {
       res.status(500).json({
         error: {
@@ -171,7 +182,7 @@ app.put('/api/todos/:todoId', async (req, res) => {
     const item = await putItem(newItem)
     res.json(item)
   } catch (error) {
-    console.log(JSON.stringify({ event: 'api.todo.update.error', error: error.message }))
+    console.log(JSON.stringify({ event: 'api.todo.update.error', error: error.message || `${error}` }))
     if (!res.headersSent) {
       res.status(500).json({
         error: {
@@ -200,7 +211,7 @@ app.delete('/api/todos/:todoId', async (req, res) => {
     // Returned delete todo's id to indicate it was successfully deleted
     res.json({ id: todoId })
   } catch (error) {
-    console.log(JSON.stringify({ event: 'api.todo.delete.error', error: error.message }))
+    console.log(JSON.stringify({ event: 'api.todo.delete.error', error: error.message || `${error}` }))
     if (!res.headersSent) {
       res.status(500).json({
         error: {
@@ -214,7 +225,7 @@ app.delete('/api/todos/:todoId', async (req, res) => {
 const port = 3000
 const server = app.listen(port, error => {
   if (error) {
-    console.log(JSON.stringify({ event: 'api.server.error', error: error.message }))
+    console.log(JSON.stringify({ event: 'api.server.error', error: error.message || `${error}` }))
   } else {
     console.log(JSON.stringify({ event: 'api.server.running', port }))
   }
@@ -224,7 +235,7 @@ process.once('SIGTERM', async () => {
   console.log(JSON.stringify({ event: 'api.server.signal', signal: 'SIGTERM' }))
   server.close(error => {
     if (error) {
-      console.log(JSON.stringify({ event: 'api.server.closed.error', error: error.message }))
+      console.log(JSON.stringify({ event: 'api.server.closed.error', error: error.message || `${error}` }))
     } else {
       console.log(JSON.stringify({ event: 'api.server.closed' }))
     }

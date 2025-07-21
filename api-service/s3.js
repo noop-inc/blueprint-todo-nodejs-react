@@ -4,7 +4,6 @@ import {
   DeleteObjectCommand
 } from '@aws-sdk/client-s3'
 import { Upload } from '@aws-sdk/lib-storage'
-import { extension } from 'mime-types'
 import { randomUUID } from 'node:crypto'
 
 const S3Endpoint = process.env.S3_ENDPOINT
@@ -28,15 +27,13 @@ export const getObject = async key => {
 }
 
 // Uploads file to S3, generates string UUID as key for resulting object
-export const uploadObject = async ({ buffer, mimetype }) => {
-  const ext = extension(mimetype)
-  const id = randomUUID()
-  const key = `${id}.${ext}`
+export const uploadObject = async ({ stream, mimeType }) => {
+  const key = randomUUID()
   const params = {
     Bucket: S3Bucket,
     Key: key,
-    Body: buffer,
-    ContentType: mimetype
+    Body: stream,
+    ContentType: mimeType
   }
   const upload = new Upload({
     client: s3Client,

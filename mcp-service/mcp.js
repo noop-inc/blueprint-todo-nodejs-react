@@ -1,11 +1,10 @@
-import { lookup } from 'mime-types'
 import { z } from 'zod'
 import { readFile } from 'node:fs/promises'
-import { Readable } from 'node:stream'
 import { URL } from 'node:url'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import sharp from 'sharp'
+import { pipeline } from 'node:stream'
 import { scanTable, getItem, putItem, deleteItem } from './dynamodb.js'
 import { getObject, uploadObject, deleteObject } from './s3.js'
 
@@ -18,36 +17,28 @@ const externalUrlToImageId = async externalUrl => {
   if (!response.ok) {
     throw new Error(`Failed to fetch image from external URL: ${externalUrl}`)
   }
-  const mimetype = response.headers.get('content-type') || lookup(externalUrl)
-  if (!mimetype) {
+  const mimeType = response.headers.get('content-type')
+  if (!mimeType) {
     throw new Error(`No content type found for image at URL: ${externalUrl}`)
   }
-  if (!mimetype.startsWith('image/')) {
-    throw new Error(`Invalid content type for image at URL: ${externalUrl}. Expected image/* but got ${mimetype}.`)
+  if (!mimeType.startsWith('image/')) {
+    throw new Error(`Invalid content type for image at URL: ${externalUrl}. Expected image/* but got ${mimeType}.`)
   }
-  const arrayBuffer = await response.arrayBuffer()
-  const buffer = Buffer.from(arrayBuffer)
-  const metadata = await sharp(buffer).metadata()
-  const convertFormat = !['avif', 'webp'].includes(metadata.type)
-  const convertSize = (metadata.height > 640) || (metadata.width > 640)
-  let transformer
-  if (convertSize || convertFormat) {
-    transformer = sharp()
-    if (convertSize) {
-      transformer = transformer.resize({ width: 640, height: 640, fit: sharp.fit.inside })
+  const transformer = sharp()
+    .resize({ width: 640, height: 640, fit: sharp.fit.inside, withoutEnlargement: true })
+    .toFormat('avif')
+  const stream = pipeline(response.body, transformer, error => {
+    if (error) {
+      console.log(JSON.stringify({ event: 'mcp.upload.pipe.error', error: error.message || `${error}` }))
     }
-    if (convertFormat) {
-      transformer = transformer.toFormat('avif')
-    }
-  }
-  const readableStream = Readable.from(buffer)
+  })
   return await uploadObject({
-    buffer: transformer ? readableStream.pipe(transformer) : readableStream,
-    mimetype: `image/${convertFormat ? 'avif' : metadata.type}`
+    stream,
+    mimeType: 'image/avif'
   })
 }
 
-const ImageIdSchema = z.string().describe('Randomly generated version 4 UUID to serve as an identifier for an image linked to a todo item. Includes file extension of image as a suffix. A maximum of 6 images can be linked to a todo item. Do not expose to end users in client responses. Use to identify links between todo items and images. Cannot be updated after creation.')
+const ImageIdSchema = z.string().describe('Randomly generated version 4 UUID to serve as an identifier for an image linked to a todo item. A maximum of 6 images can be linked to a todo item. Do not expose to end users in client responses. Use to identify links between todo items and images. Cannot be updated after creation.')
 
 const TodoSchema = {
   id: z.string().describe('Randomly generated version 4 UUID to serve as an identifier for the todo item. Do not expose to end users in client responses. Use to identify links between todo items and images. Cannot be updated after creation.'),
@@ -84,34 +75,19 @@ const structureTodoItemContent = item =>
 const structureImageContent = async imageId => {
   const response = await getObject(imageId)
   const chunks = []
-  for await (const chunk of response.Body) {
+  const transformer = sharp()
+    .resize({ width: 160, height: 160, fit: sharp.fit.inside, withoutEnlargement: true })
+    .toFormat('jpeg')
+  const stream = pipeline(response.Body, transformer, error => {
+    if (error) {
+      console.log(JSON.stringify({ event: 'mcp.image.pipe.error', error: error.message || `${error}` }))
+    }
+  })
+  for await (const chunk of stream) {
     chunks.push(chunk)
   }
   const buffer = Buffer.concat(chunks)
-  let base64
-  const metadata = await sharp(buffer).metadata()
-  const convertFormat = metadata.type !== 'png'
-  const convertSize = (metadata.height > 160) || (metadata.width > 160)
-  let transformer
-  if (convertSize || convertFormat) {
-    transformer = sharp()
-    if (convertSize) {
-      transformer = transformer.resize({ width: 160, height: 160, fit: sharp.fit.inside })
-    }
-    if (convertFormat) {
-      transformer = transformer.toFormat('png')
-    }
-    const readableStream = Readable.from(buffer)
-    const chunks = []
-    for await (const chunk of readableStream.pipe(transformer)) {
-      chunks.push(chunk)
-    }
-    const converted = Buffer.concat(chunks)
-    base64 = converted.toString('base64')
-  } else {
-    base64 = buffer.toString('base64')
-  }
-
+  const base64 = buffer.toString('base64')
   return [
     {
       type: 'text',
@@ -123,7 +99,7 @@ const structureImageContent = async imageId => {
     {
       type: 'image',
       data: base64,
-      mimeType: 'image/png',
+      mimeType: 'image/jpeg',
       annotations: {
         audience: ['user', 'assistant']
       }
