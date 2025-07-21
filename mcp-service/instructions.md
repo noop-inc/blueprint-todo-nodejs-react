@@ -21,8 +21,8 @@ This server provides the ability to interface with a todo list. This todo list c
   "created": 1720987654321,
   "completed": false,
   "images": [
-    "ccd32848-3b91-4b67-9b6d-1b2b49b1a3c8.webp",
-    "53629d04-5f83-4ccf-b2b8-105e139e4ee2.avif"
+    "ccd32848-3b91-4b67-9b6d-1b2b49b1a3c8",
+    "53629d04-5f83-4ccf-b2b8-105e139e4ee2"
   ]
 }
 ```
@@ -31,7 +31,7 @@ This server provides the ability to interface with a todo list. This todo list c
 
 - `list-todos`: Requires no input. Returns a list of all todo items and their linked images.
 - `get-todo`: Requires atodo item id as input. Returns the requested todo item and its linked images.
-- `create-todo`: Requires a description as input. Can optionally include a list of up to 6 external URLs for images. If no external URLs are provided, select between 0 and 6 (inclusive) images from `https://images.unsplash.com` appened with the query string value `?w=640&h=640&fit=max&auto=compress&fm=avif`. Only select images from `https://images.unsplash.com` that are relevant to the provided `description` field. If no relevant images exist, do not provide any images from Unsplash. Returns the created todo item and its linked images.
+- `create-todo`: Requires a description as input. Can optionally include a list of up to 6 external URLs for images. If no external URLs are provided, select between 0 and 6 (inclusive) images from `https://images.unsplash.com` appened with the query string value `?w=640&h=640&fit=max&auto=compress&fm=webp`. Only select images from `https://images.unsplash.com` that are relevant to the provided `description` field. If no relevant images exist, do not provide any images from Unsplash. Returns the created todo item and its linked images.
 - `update-todo`: Requires a todo item id as input. Can optionally include an updated `description` and/or `completed` value. Returns the updated todo item and its linked images.
 - `delete-todo`: Requires a todo item id as input. Deletes the requested todo item and its linked images. Returns a confirmation that the requested todo item and its linked images have been deleted.
 - `get-image`: Requires an image id as input. Returns the requested image and its linked todo item.

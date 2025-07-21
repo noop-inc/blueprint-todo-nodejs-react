@@ -87,10 +87,10 @@ app.post('/api/todos', async (req, res) => {
         }
         const transformer = sharp()
           .resize({ width: 640, height: 640, fit: sharp.fit.inside, withoutEnlargement: true })
-          .toFormat('avif')
+          .toFormat('webp')
         imagePromises.push(uploadObject({
           stream: file.pipe(transformer),
-          mimeType: 'image/avif'
+          mimeType: 'image/webp'
         }))
       })
       bb.on('field', (name, value) => {
