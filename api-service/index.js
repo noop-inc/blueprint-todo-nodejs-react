@@ -35,7 +35,7 @@ app.get('/api/images/:imageId', async (req, res) => {
     const params = req.params
     const imageId = params.imageId
     const response = await getObject(imageId)
-    res.setHeader('Content-Type', response.contentType)
+    res.setHeader('Content-Type', response.ContentType)
     response.Body.pipe(res)
   } catch (error) {
     console.log(JSON.stringify({ event: 'api.image.get.error', error: error.message || `${error}` }))
