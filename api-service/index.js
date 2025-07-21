@@ -8,6 +8,8 @@ import sharp from 'sharp'
 import { scanTable, getItem, putItem, deleteItem } from './dynamodb.js'
 import { getObject, uploadObject, deleteObject } from './s3.js'
 
+sharp.concurrency(1)
+
 const app = express()
 app.use(cors())
 app.use(express.json())
@@ -84,34 +86,30 @@ app.post('/api/todos', uploader, async (req, res) => {
   try {
     const files = req?.files || []
     // Uploads images to S3, returns array of S3 keys for uploaded files
-    const images = await Promise.all(
-      files.map(async ({ buffer, mimetype, originalname }) => {
-        if (!mimetype.startsWith('image/')) {
-          throw new Error(`Invalid content type for image: ${originalname}. Expected image/* but got ${mimetype}.`)
+    const images = []
+    for (const { buffer, mimetype, originalname } of files) {
+      if (!mimetype.startsWith('image/')) {
+        throw new Error(`Invalid content type for image: ${originalname}. Expected image/* but got ${mimetype}.`)
+      }
+      const metadata = await sharp(buffer).metadata()
+      const convertFormat = metadata.type !== 'webp'
+      const convertSize = (metadata.height > 640) || (metadata.width > 640)
+      let transformer
+      if (convertSize || convertFormat) {
+        transformer = sharp()
+        if (convertSize) {
+          transformer = transformer.resize({ width: 640, height: 640, fit: sharp.fit.inside })
         }
-
-        const metadata = await sharp(buffer).metadata()
-        const convertFormat = metadata.type !== 'webp'
-        const convertSize = (metadata.height > 640) || (metadata.width > 640)
-
-        let transformer
-        if (convertSize || convertFormat) {
-          transformer = sharp()
-          if (convertSize) {
-            transformer = transformer.resize({ width: 640, height: 640, fit: sharp.fit.inside })
-          }
-          if (convertFormat) {
-            transformer = transformer.toFormat('webp')
-          }
+        if (convertFormat) {
+          transformer = transformer.toFormat('webp')
         }
-
-        const readableStream = Readable.from(buffer)
-        return await uploadObject({
-          buffer: transformer ? readableStream.pipe(transformer) : readableStream,
-          mimetype: 'image/webp'
-        })
-      })
-    )
+      }
+      const readableStream = Readable.from(buffer)
+      images.push(await uploadObject({
+        buffer: transformer ? readableStream.pipe(transformer) : readableStream,
+        mimetype: 'image/webp'
+      }))
+    }
     const body = req.body
     const description = body.description
     const newTodo = {
