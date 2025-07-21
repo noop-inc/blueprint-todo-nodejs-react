@@ -2,15 +2,40 @@ import express from 'express'
 import morgan from 'morgan'
 import cors from 'cors'
 import sharp from 'sharp'
+import { Readable } from 'node:stream'
 import { scanTable, getItem, putItem, deleteItem } from './dynamodb.js'
 import { getObject, uploadObject, deleteObject } from './s3.js'
 import busboy from 'busboy'
-import compression from 'compression'
 
 sharp.concurrency(1)
 
+const streamToImageId = async stream => {
+  const chunks = []
+  for await (const chunk of stream) {
+    chunks.push(chunk)
+  }
+  const buffer = Buffer.concat(chunks)
+  const metadata = await sharp(buffer).metadata()
+  const convertFormat = !['avif', 'webp'].includes(metadata.type)
+  const convertSize = (metadata.height > 640) || (metadata.width > 640)
+  let transformer
+  if (convertSize || convertFormat) {
+    transformer = sharp()
+    if (convertSize) {
+      transformer = transformer.resize({ width: 640, height: 640, fit: sharp.fit.inside, withoutEnlargement: true })
+    }
+    if (convertFormat) {
+      transformer = transformer.toFormat('webp')
+    }
+  }
+  const readableStream = Readable.from(buffer)
+  return await uploadObject({
+    buffer: transformer ? readableStream.pipe(transformer) : readableStream,
+    mimetype: `image/${convertFormat ? 'webp' : metadata.type}`
+  })
+}
+
 const app = express()
-app.use(compression())
 app.use(cors())
 app.use(express.json())
 
@@ -89,13 +114,7 @@ app.post('/api/todos', async (req, res) => {
         if (!mimeType.startsWith('image/')) {
           return reject(new Error(`Invalid content type for image: ${filename}. Expected image/* but got ${mimeType}.`))
         }
-        const transformer = sharp()
-          .resize({ width: 640, height: 640, fit: sharp.fit.inside, withoutEnlargement: true })
-          .toFormat('jpeg')
-        imagePromises.push(uploadObject({
-          stream: file.pipe(transformer),
-          mimeType: 'image/jpeg'
-        }))
+        imagePromises.push(streamToImageId(file))
       })
       bb.on('field', (name, value) => {
         body[name] = value
