@@ -30,8 +30,8 @@ const streamToImageId = async stream => {
   }
   const readableStream = Readable.from(buffer)
   return await uploadObject({
-    buffer: transformer ? readableStream.pipe(transformer) : readableStream,
-    mimetype: `image/${convertFormat ? 'webp' : metadata.type}`
+    stream: transformer ? readableStream.pipe(transformer) : readableStream,
+    mimeType: `image/${convertFormat ? 'webp' : metadata.type}`
   })
 }
 
