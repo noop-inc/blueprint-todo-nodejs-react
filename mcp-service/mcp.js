@@ -194,6 +194,8 @@ const mcpTools = {
       }
     },
     handler: async ({ description, images: files = [] }) => {
+      const now = Date.now()
+      console.log('CREATE TODO START', now)
       if (files.length > 6) {
         throw new Error('Cannot link more than 6 images to todo item')
       }
@@ -207,8 +209,11 @@ const mcpTools = {
       }
       if (images.length) newTodo.images = images
       const item = await putItem(newTodo)
+      console.log('CREATE TODO END', now)
+      console.log('GET TODO START', now)
       const structuredContent = item
       const content = await structureTodoItemAndImageContent(item)
+      console.log('GET TODO END', now)
       return { content, structuredContent }
     }
   },

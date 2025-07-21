@@ -2,8 +2,10 @@ import express from 'express'
 import morgan from 'morgan'
 import cors from 'cors'
 import { getServerAndTransport } from './mcp.js'
+import compression from 'compression'
 
 const app = express()
+app.use(compression())
 app.use(cors())
 app.use(express.json())
 

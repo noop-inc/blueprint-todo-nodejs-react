@@ -13,6 +13,7 @@
     "@aws-sdk/lib-dynamodb": "^3.848.0",
     "@aws-sdk/lib-storage": "^3.848.0",
     "busboy": "^1.6.0",
+    "compression": "^1.8.1",
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "morgan": "^1.10.1",

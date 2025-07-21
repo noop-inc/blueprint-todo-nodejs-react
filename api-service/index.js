@@ -5,8 +5,10 @@ import sharp from 'sharp'
 import { scanTable, getItem, putItem, deleteItem } from './dynamodb.js'
 import { getObject, uploadObject, deleteObject } from './s3.js'
 import busboy from 'busboy'
+import compression from 'compression'
 
 const app = express()
+app.use(compression())
 app.use(cors())
 app.use(express.json())
 
