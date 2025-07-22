@@ -7,6 +7,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import sharp from 'sharp'
 import { scanTable, getItem, putItem, deleteItem } from './dynamodb.js'
 import { getObject, uploadObject, deleteObject } from './s3.js'
+import { randomUUID } from 'node:crypto'
 
 const instructions = await readFile(new URL('./instructions.md', import.meta.url), { encoding: 'utf-8' })
 
@@ -130,13 +131,14 @@ const structureTodoItemAndImageContent = async item => {
 }
 
 const handlerWrapper = (name, handler) => async (...args) => {
-  console.log(JSON.stringify({ event: 'mcp.tool.triggered', tool: name, arguments: args[0] }))
+  const toolId = randomUUID()
+  console.log(JSON.stringify({ event: 'mcp.tool.triggered', toolId, tool: name, arguments: args[0] }))
   try {
     const response = await handler(...args)
-    console.log(JSON.stringify({ event: 'mcp.tool.completed', tool: name }))
+    console.log(JSON.stringify({ event: 'mcp.tool.completed', toolId, tool: name }))
     return response
   } catch (error) {
-    console.log(JSON.stringify({ event: 'mcp.tool.error', tool: name, code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack }))
+    console.log(JSON.stringify({ event: 'mcp.tool.error', toolId, tool: name, code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack }))
     return {
       isError: true,
       content: [
@@ -284,7 +286,7 @@ const mcpTools = {
     },
     handler: async ({ todoId }) => {
       const item = await getItem(todoId)
-      const images = item.images || []
+      const images = item?.images || []
       await Promise.all([
         deleteItem(todoId),
         ...images.map(async imageId => await deleteObject(imageId))
@@ -327,7 +329,7 @@ const mcpTools = {
     handler: async ({ imageId }) => {
       const content = await structureImageContent(imageId)
       const items = await scanTable()
-      const item = items.find(item => item.images?.includes(imageId))
+      const item = items.find(item => item?.images?.includes(imageId))
       const structuredContent = item
       content.push(...structureTodoItemContent(item))
       return { content, structuredContent }
@@ -347,9 +349,9 @@ export const getServerAndTransport = () => {
     }
   )
   for (const [name, { config, handler }] of Object.entries(mcpTools)) {
-    mcpServer.registerTool(name, config, (...args) => {
+    mcpServer.registerTool(name, config, (...args) =>
       handlerWrapper(name, handler)(...args)
-    })
+    )
   }
   const mcpTransport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined

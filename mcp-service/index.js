@@ -16,13 +16,15 @@ app.use(compression())
 app.use(cors())
 app.use(express.json())
 
-app.use(morgan((tokens, req, res) =>
-  JSON.stringify({
-    event: 'mcp.request',
-    requestId: tokens.id(req, res),
-    method: tokens.method(req, res),
-    url: tokens.url(req, res)
-  })
+app.use(morgan(
+  (tokens, req, res) =>
+    JSON.stringify({
+      event: 'mcp.request',
+      requestId: tokens.id(req, res),
+      method: tokens.method(req, res),
+      url: tokens.url(req, res)
+    }),
+  { immediate: true }
 ))
 
 app.use(morgan((tokens, req, res) =>

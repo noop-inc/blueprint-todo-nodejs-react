@@ -55,13 +55,15 @@ app.use(compression())
 app.use(cors())
 app.use(express.json())
 
-app.use(morgan((tokens, req, res) =>
-  JSON.stringify({
-    event: 'api.request',
-    requestId: tokens.id(req, res),
-    method: tokens.method(req, res),
-    url: tokens.url(req, res)
-  })
+app.use(morgan(
+  (tokens, req, res) =>
+    JSON.stringify({
+      event: 'api.request',
+      requestId: tokens.id(req, res),
+      method: tokens.method(req, res),
+      url: tokens.url(req, res)
+    }),
+  { immediate: true }
 ))
 
 app.use(morgan((tokens, req, res) =>
@@ -232,7 +234,7 @@ app.delete('/api/todos/:todoId', async (req, res) => {
     const todoId = params.todoId
     // Gets todo to be deleted from DynamoDB
     const item = await getItem(todoId)
-    const images = item.images || []
+    const images = item?.images || []
     // If todo has associated images in S3, then delete those images
     await Promise.all([
       deleteItem(todoId),
