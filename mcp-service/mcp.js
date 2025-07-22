@@ -7,7 +7,6 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import sharp from 'sharp'
 import { scanTable, getItem, putItem, deleteItem } from './dynamodb.js'
 import { getObject, uploadObject, deleteObject } from './s3.js'
-import { randomUUID } from 'node:crypto'
 
 const instructions = await readFile(new URL('./instructions.md', import.meta.url), { encoding: 'utf-8' })
 
@@ -130,15 +129,15 @@ const structureTodoItemAndImageContent = async item => {
   return content
 }
 
-const handlerWrapper = (name, handler) => async (...args) => {
-  const toolId = randomUUID()
-  console.log(JSON.stringify({ event: 'mcp.tool.triggered', toolId, tool: name, arguments: args[0] }))
+const handlerWrapper = (name, handler) => async (params, ...args) => {
+  console.log(args)
+  console.log(`${JSON.stringify({ event: 'mcp.tool.triggered', tool: name, arguments: params })}\n`)
   try {
-    const response = await handler(...args)
-    console.log(JSON.stringify({ event: 'mcp.tool.completed', toolId, tool: name }))
+    const response = await handler(params, ...args)
+    console.log(`${JSON.stringify({ event: 'mcp.tool.completed', tool: name })}\n`)
     return response
   } catch (error) {
-    console.log(JSON.stringify({ event: 'mcp.tool.error', toolId, tool: name, code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack }))
+    console.log(`${JSON.stringify({ event: 'mcp.tool.error', tool: name, code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
     return {
       isError: true,
       content: [

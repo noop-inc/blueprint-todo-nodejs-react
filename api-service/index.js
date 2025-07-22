@@ -57,17 +57,17 @@ app.use(express.json())
 
 app.use(morgan(
   (tokens, req, res) =>
-    JSON.stringify({
+    `${JSON.stringify({
       event: 'api.request',
       requestId: tokens.id(req, res),
       method: tokens.method(req, res),
       url: tokens.url(req, res)
-    }),
+    })}\n`,
   { immediate: true }
 ))
 
 app.use(morgan((tokens, req, res) =>
-  JSON.stringify({
+  `${JSON.stringify({
     event: 'api.response',
     requestId: tokens.id(req, res),
     method: tokens.method(req, res),
@@ -75,7 +75,7 @@ app.use(morgan((tokens, req, res) =>
     status: parseFloat(tokens.status(req, res)),
     contentLength: parseFloat(tokens.res(req, res, 'content-length')),
     responseTime: parseFloat(tokens['response-time'](req, res))
-  })
+  })}\n`
 ))
 
 app.get('/favicon.ico', (req, res) => {
@@ -94,7 +94,7 @@ app.get('/api/images/:imageId', async (req, res) => {
     res.set('Cache-Control', 'max-age=31536000')
     response.Body.pipe(res)
   } catch (error) {
-    console.log(JSON.stringify({ event: 'api.image.get.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack }))
+    console.log(`${JSON.stringify({ event: 'api.image.get.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
     if (!res.headersSent) {
       res.status(500).json({
         code: error.code || 'Error',
@@ -111,7 +111,7 @@ app.get('/api/todos', async (req, res) => {
     const items = await scanTable()
     res.json(items)
   } catch (error) {
-    console.log(JSON.stringify({ event: 'api.todos.get.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack }))
+    console.log(`${JSON.stringify({ event: 'api.todos.get.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
     if (!res.headersSent) {
       res.status(500).json({
         code: error.code || 'Error',
@@ -165,7 +165,7 @@ app.post('/api/todos', async (req, res) => {
     const item = await putItem(newTodo)
     res.json(item)
   } catch (error) {
-    console.log(JSON.stringify({ event: 'api.todos.create.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack }))
+    console.log(`${JSON.stringify({ event: 'api.todos.create.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
     if (!res.headersSent) {
       res.status(500).json({
         code: error.code || 'Error',
@@ -186,7 +186,7 @@ app.get('/api/todos/:todoId', async (req, res) => {
     const item = await getItem(todoId)
     res.json(item)
   } catch (error) {
-    console.log(JSON.stringify({ event: 'api.todo.get.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack }))
+    console.log(`${JSON.stringify({ event: 'api.todo.get.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
     if (!res.headersSent) {
       res.status(500).json({
         code: error.code || 'Error',
@@ -214,7 +214,7 @@ app.put('/api/todos/:todoId', async (req, res) => {
     const item = await putItem(newItem)
     res.json(item)
   } catch (error) {
-    console.log(JSON.stringify({ event: 'api.todo.update.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack }))
+    console.log(`${JSON.stringify({ event: 'api.todo.update.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
     if (!res.headersSent) {
       res.status(500).json({
         code: error.code || 'Error',
@@ -243,7 +243,7 @@ app.delete('/api/todos/:todoId', async (req, res) => {
     // Returned delete todo's id to indicate it was successfully deleted
     res.json({ id: todoId })
   } catch (error) {
-    console.log(JSON.stringify({ event: 'api.todo.delete.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack }))
+    console.log(`${JSON.stringify({ event: 'api.todo.delete.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
     if (!res.headersSent) {
       res.status(500).json({
         code: error.code || 'Error',
@@ -257,19 +257,19 @@ app.delete('/api/todos/:todoId', async (req, res) => {
 const port = 3000
 const server = app.listen(port, error => {
   if (error) {
-    console.log(JSON.stringify({ event: 'api.server.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack }))
+    console.log(`${JSON.stringify({ event: 'api.server.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
   } else {
-    console.log(JSON.stringify({ event: 'api.server.running', port }))
+    console.log(`${JSON.stringify({ event: 'api.server.running', port })}\n`)
   }
 })
 
 process.once('SIGTERM', async () => {
-  console.log(JSON.stringify({ event: 'api.server.signal', signal: 'SIGTERM' }))
+  console.log(`${JSON.stringify({ event: 'api.server.signal', signal: 'SIGTERM' })}\n`)
   server.close(error => {
     if (error) {
-      console.log(JSON.stringify({ event: 'api.server.closed.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack }))
+      console.log(`${JSON.stringify({ event: 'api.server.closed.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
     } else {
-      console.log(JSON.stringify({ event: 'api.server.closed' }))
+      console.log(`${JSON.stringify({ event: 'api.server.closed' })}\n`)
     }
     process.exit(error ? 1 : 0)
   })

@@ -18,17 +18,17 @@ app.use(express.json())
 
 app.use(morgan(
   (tokens, req, res) =>
-    JSON.stringify({
+    `${JSON.stringify({
       event: 'mcp.request',
       requestId: tokens.id(req, res),
       method: tokens.method(req, res),
       url: tokens.url(req, res)
-    }),
+    })}\n`,
   { immediate: true }
 ))
 
 app.use(morgan((tokens, req, res) =>
-  JSON.stringify({
+  `${JSON.stringify({
     event: 'mcp.response',
     requestId: tokens.id(req, res),
     method: tokens.method(req, res),
@@ -36,7 +36,7 @@ app.use(morgan((tokens, req, res) =>
     status: parseFloat(tokens.status(req, res)),
     contentLength: parseFloat(tokens.res(req, res, 'content-length')),
     responseTime: parseFloat(tokens['response-time'](req, res))
-  })
+  })}\n`
 ))
 
 app.get('/favicon.ico', (req, res) => {
@@ -52,24 +52,24 @@ app.post('/mcp', async (req, res) => {
     mcpServers.add(mcpServer)
     mcpTransports.add(mcpTransport)
     res.once('close', async () => {
-      console.log(JSON.stringify({ event: 'mcp.request.close' }))
+      console.log(`${JSON.stringify({ event: 'mcp.request.close', requestId: req.id })}\n`)
       try {
         await mcpTransport.close()
         mcpTransports.delete(mcpTransport)
       } catch (error) {
-        console.log(JSON.stringify({ event: 'mcp.transport.close.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack }))
+        console.log(`${JSON.stringify({ event: 'mcp.transport.close.error', requestId: req.id, code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
       }
       try {
         await mcpServer.close()
         mcpServers.delete(mcpServer)
       } catch (error) {
-        console.log(JSON.stringify({ event: 'mcp.server.close.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack }))
+        console.log(`${JSON.stringify({ event: 'mcp.server.close.error', requestId: req.id, code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
       }
     })
     await mcpServer.connect(mcpTransport)
     await mcpTransport.handleRequest(req, res, req.body)
   } catch (error) {
-    console.log(JSON.stringify({ event: 'mcp.post.error', code: error.code || 'Error', rror: error.message || `${error}`, stack: error.stack }))
+    console.log(`${JSON.stringify({ event: 'mcp.post.error', requestId: req.id, code: error.code || 'Error', rror: error.message || `${error}`, stack: error.stack })}\n`)
     if (!res.headersSent) {
       res.status(500).json({
         jsonrpc: '2.0',
@@ -108,41 +108,41 @@ app.delete('/mcp', async (req, res) => {
 const port = 3000
 const server = app.listen(port, error => {
   if (error) {
-    console.log(JSON.stringify({ event: 'mcp.server.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack }))
+    console.log(`${JSON.stringify({ event: 'mcp.server.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
   } else {
-    console.log(JSON.stringify({ event: 'mcp.server.running', port }))
+    console.log(`${JSON.stringify({ event: 'mcp.server.running', port })}\n`)
   }
 })
 
 process.once('SIGTERM', async () => {
-  console.log(JSON.stringify({ event: 'mcp.server.signal', signal: 'SIGTERM' }))
+  console.log(`${JSON.stringify({ event: 'mcp.server.signal', signal: 'SIGTERM' })}\n`)
   if (mcpTransports.size) {
-    console.log(JSON.stringify({ event: 'mcp.transports.cleanup' }))
+    console.log(`${JSON.stringify({ event: 'mcp.transports.cleanup' })}\n`)
     for (const mcpTransport of mcpTransports) {
       try {
         await mcpTransport.close()
         mcpTransports.delete(mcpTransport)
       } catch (error) {
-        console.log(JSON.stringify({ event: 'mcp.transports.cleanup.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack }))
+        console.log(`${JSON.stringify({ event: 'mcp.transports.cleanup.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
       }
     }
   }
   if (mcpServers.size) {
-    console.log(JSON.stringify({ event: 'mcp.servers.cleanup' }))
+    console.log(`${JSON.stringify({ event: 'mcp.servers.cleanup' })}\n`)
     for (const mcpServer of mcpServers) {
       try {
         await mcpServer.close()
         mcpServers.delete(mcpServer)
       } catch (error) {
-        console.log(JSON.stringify({ event: 'mcp.servers.cleanup.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack }))
+        console.log(`${JSON.stringify({ event: 'mcp.servers.cleanup.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
       }
     }
   }
   server.close(error => {
     if (error) {
-      console.log(JSON.stringify({ event: 'mcp.server.closed.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack }))
+      console.log(`${JSON.stringify({ event: 'mcp.server.closed.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
     } else {
-      console.log(JSON.stringify({ event: 'mcp.server.closed' }))
+      console.log(`${JSON.stringify({ event: 'mcp.server.closed' })}\n`)
     }
     process.exit(error ? 1 : 0)
   })
