@@ -118,25 +118,25 @@ process.once('SIGTERM', async () => {
   console.log(`${JSON.stringify({ event: 'mcp.server.signal', signal: 'SIGTERM' })}\n`)
   if (mcpTransports.size) {
     console.log(`${JSON.stringify({ event: 'mcp.transports.cleanup' })}\n`)
-    for (const mcpTransport of mcpTransports) {
+    await Promise.all(mcpTransports.map(async mcpTransport => {
       try {
         await mcpTransport.close()
         mcpTransports.delete(mcpTransport)
       } catch (error) {
         console.log(`${JSON.stringify({ event: 'mcp.transports.cleanup.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
       }
-    }
+    }))
   }
   if (mcpServers.size) {
     console.log(`${JSON.stringify({ event: 'mcp.servers.cleanup' })}\n`)
-    for (const mcpServer of mcpServers) {
+    await Promise.all(mcpServers.map(async mcpServer => {
       try {
         await mcpServer.close()
         mcpServers.delete(mcpServer)
       } catch (error) {
         console.log(`${JSON.stringify({ event: 'mcp.servers.cleanup.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
       }
-    }
+    }))
   }
   server.close(error => {
     if (error) {
