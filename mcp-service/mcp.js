@@ -167,7 +167,7 @@ const mcpTools = {
       const structuredContent = { items }
       const content = []
       if (items.length) {
-        content.push(...(await Promise.all(items.map(async item => await structureTodoItemAndImageContent(item))).flat()))
+        content.push(...(await Promise.all(items.map(async item => await structureTodoItemAndImageContent(item)))).flat())
       } else {
         content.push({
           type: 'text',
