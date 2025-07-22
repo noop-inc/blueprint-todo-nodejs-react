@@ -129,16 +129,20 @@ const structureTodoItemAndImageContent = async item => {
   return content
 }
 
-const handlerWrapper = handler => async (...args) => {
+const handlerWrapper = (name, handler) => async (...args) => {
+  console.log(JSON.stringify({ event: 'mcp.tool.triggered', tool: name, arguments: args[0] }))
   try {
-    return await handler(...args)
+    const response = await handler(...args)
+    console.log(JSON.stringify({ event: 'mcp.tool.completed', tool: name }))
+    return response
   } catch (error) {
+    console.log(JSON.stringify({ event: 'mcp.tool.error', tool: name, code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack }))
     return {
       isError: true,
       content: [
         {
           type: 'text',
-          text: `Error: ${error.message || error}`
+          text: `Error: ${error.message || `${error}`}`
         }
       ]
     }
@@ -343,7 +347,9 @@ export const getServerAndTransport = () => {
     }
   )
   for (const [name, { config, handler }] of Object.entries(mcpTools)) {
-    mcpServer.registerTool(name, config, handlerWrapper(handler))
+    mcpServer.registerTool(name, config, (...args) => {
+      handlerWrapper(name, handler)(...args)
+    })
   }
   const mcpTransport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined
