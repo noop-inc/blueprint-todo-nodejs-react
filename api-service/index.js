@@ -1,6 +1,7 @@
 import express from 'express'
 import morgan from 'morgan'
 import cors from 'cors'
+import compression from 'compression'
 import sharp from 'sharp'
 import { Readable } from 'node:stream'
 import { scanTable, getItem, putItem, deleteItem } from './dynamodb.js'
@@ -26,16 +27,24 @@ const streamToImageId = async stream => {
       transformer = transformer.resize({ width: 640, height: 640, fit: sharp.fit.inside, withoutEnlargement: true })
     }
     if (convertFormat) {
-      transformer = transformer.toFormat('webp', { quality: 50, alphaQuality: 50 })
+      transformer = transformer.toFormat('avif', { quality: 50, lossless: false, chromaSubsampling: '4:2:0', bitdepth: 8 })
     }
   }
+  const format = (
+    convertFormat ||
+    (metadata.format === 'avif') ||
+    ((metadata.format === 'heif') && (metadata.compression === 'av1'))
+  )
+    ? 'avif'
+    : 'webp'
   return await uploadObject({
-    stream: transformer ? Readable.from(buffer).pipe(transformer) : buffer,
-    mimeType: `image/${(convertFormat || (metadata.format === 'webp')) ? 'webp' : 'avif'}`
+    body: transformer ? Readable.from(buffer).pipe(transformer) : buffer,
+    mimeType: `image/${format}`
   })
 }
 
 const app = express()
+app.use(compression())
 app.use(cors())
 app.use(express.json())
 
@@ -62,7 +71,8 @@ app.get('/api/images/:imageId', async (req, res) => {
     const params = req.params
     const imageId = params.imageId
     const response = await getObject(imageId)
-    res.setHeader('Content-Type', response.ContentType)
+    res.set('Content-Type', response.ContentType)
+    res.set('Cache-Control', 'max-age=31536000')
     response.Body.pipe(res)
   } catch (error) {
     console.log(JSON.stringify({ event: 'api.image.get.error', error: error.message || `${error}` }))
@@ -107,7 +117,8 @@ app.post('/api/todos', async (req, res) => {
     const body = {}
     const bb = busboy({
       headers: req.headers,
-      limits: { files: 6 }
+      // Limit Uploads to 6 files, max size 1MB each per todo
+      limits: { fileSize: (1028 ** 2), files: 6 }
     })
     await new Promise((resolve, reject) => {
       bb.on('file', (name, file, { filename, mimeType }) => {

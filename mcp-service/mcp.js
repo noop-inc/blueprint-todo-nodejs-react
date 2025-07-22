@@ -24,6 +24,9 @@ const externalUrlToImageId = async externalUrl => {
   }
   const arrayBuffer = await response.arrayBuffer()
   const buffer = Buffer.from(arrayBuffer)
+  if (buffer.length > (1028 ** 2)) {
+    throw new Error(`Image larger than 1MB at URL: ${externalUrl}. Image must be 1MB or smaller.`)
+  }
   const metadata = await sharp(buffer).metadata()
   const convertFormat = !(
     ['avif', 'webp'].includes(metadata.format) ||
@@ -37,12 +40,19 @@ const externalUrlToImageId = async externalUrl => {
       transformer = transformer.resize({ width: 640, height: 640, fit: sharp.fit.inside, withoutEnlargement: true })
     }
     if (convertFormat) {
-      transformer = transformer.toFormat('webp')
+      transformer = transformer.toFormat('avif', { quality: 50, lossless: false, chromaSubsampling: '4:2:0', bitdepth: 8 })
     }
   }
+  const format = (
+    convertFormat ||
+    (metadata.format === 'avif') ||
+    ((metadata.format === 'heif') && (metadata.compression === 'av1'))
+  )
+    ? 'avif'
+    : 'webp'
   return await uploadObject({
-    stream: transformer ? Readable.from(buffer).pipe(transformer) : buffer,
-    mimeType: `image/${(convertFormat || (metadata.format === 'webp')) ? 'webp' : 'avif'}`
+    body: transformer ? Readable.from(buffer).pipe(transformer) : buffer,
+    mimeType: `image/${format}`
   })
 }
 
@@ -85,7 +95,7 @@ const structureImageContent = async imageId => {
   const chunks = []
   const transformer = sharp()
     .resize({ width: 160, height: 160, fit: sharp.fit.inside, withoutEnlargement: true })
-    .toFormat('jpeg')
+    .toFormat('jpeg', { quality: 50, chromaSubsampling: '4:2:0' })
   for await (const chunk of response.Body.pipe(transformer)) {
     chunks.push(chunk)
   }
@@ -128,7 +138,7 @@ const handlerWrapper = handler => async (...args) => {
       content: [
         {
           type: 'text',
-          text: `Error: ${error.message}`
+          text: `Error: ${error.message || error}`
         }
       ]
     }
@@ -197,7 +207,7 @@ const mcpTools = {
       description: 'Create a todo item and its linked images. Only the `description` and `images` fields can be provided. Returns the created todo item and its linked images.',
       inputSchema: {
         description: TodoSchema.description,
-        images: z.array(z.string().describe('External URL for image linked to the todo item.')).min(1).max(6).optional().describe('List of external URLs for images linked to todo item. If no external URLs are provided, select between 0 and 6 (inclusive) images from `https://images.unsplash.com` appended with the query string value `?w=640&h=640&fit=max&auto=compress&q=50&fm=avif`. Only select images from `https://images.unsplash.com` that are relevant to the provided `description` field. If no relevant images exist, do not provide any images from Unsplash.')
+        images: z.array(z.string().describe('External URL for image linked to the todo item.')).min(1).max(6).optional().describe('List of external URLs for images linked to todo item. Each image must be smaller than 1MB. If no external URLs are provided, select between 0 and 6 (inclusive) images from `https://images.unsplash.com` appended with the query string value `?w=640&h=640&fit=max&auto=compress&q=50&fm=avif`. Only select images from `https://images.unsplash.com` that are relevant to the provided `description` field. If no relevant images exist, do not provide any images from Unsplash.')
       },
       outputSchema: TodoSchema,
       annotations: {

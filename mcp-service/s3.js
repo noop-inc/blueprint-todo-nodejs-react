@@ -27,12 +27,12 @@ export const getObject = async key => {
 }
 
 // Uploads file to S3, generates string UUID as key for resulting object
-export const uploadObject = async ({ stream, mimeType }) => {
+export const uploadObject = async ({ body, mimeType }) => {
   const key = randomUUID()
   const params = {
     Bucket: S3Bucket,
     Key: key,
-    Body: stream,
+    Body: body,
     ContentType: mimeType
   }
   const upload = new Upload({

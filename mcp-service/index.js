@@ -1,9 +1,11 @@
 import express from 'express'
 import morgan from 'morgan'
 import cors from 'cors'
+import compression from 'compression'
 import { getServerAndTransport } from './mcp.js'
 
 const app = express()
+app.use(compression())
 app.use(cors())
 app.use(express.json())
 
@@ -54,7 +56,7 @@ app.post('/mcp', async (req, res) => {
         jsonrpc: '2.0',
         error: {
           code: -32603,
-          message: error.message || 'Internal server error'
+          message: error.message || `${error}` || 'Internal server error'
         },
         id: null
       })
