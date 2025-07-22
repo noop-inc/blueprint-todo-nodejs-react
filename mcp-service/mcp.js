@@ -120,24 +120,21 @@ const structureImageContent = async imageId => {
   ]
 }
 
-const structureTodoItemAndImageContent = async item => {
-  const content = []
-  content.push(...structureTodoItemContent(item))
-  for (const imageId of (item?.images || [])) {
-    content.push(...(await structureImageContent(imageId)))
-  }
-  return content
-}
+const structureTodoItemAndImageContent = async item =>
+  (await Promise.all([
+    structureTodoItemContent(item),
+    ...(item?.images ? item.images.map(async imageId => await structureImageContent(imageId)) : [])
+  ])).flat()
 
-const handlerWrapper = (name, handler) => async (params, ...args) => {
-  console.log(args)
-  console.log(`${JSON.stringify({ event: 'mcp.tool.triggered', tool: name, arguments: params })}\n`)
+const handlerWrapper = (name, handler) => async (...args) => {
+  const [params, { requestInfo }] = args
+  console.log(`${JSON.stringify({ event: 'mcp.tool.triggered', requestId: requestInfo.headers['Todo-Request-Id'], tool: name, arguments: params })}\n`)
   try {
-    const response = await handler(params, ...args)
-    console.log(`${JSON.stringify({ event: 'mcp.tool.completed', tool: name })}\n`)
+    const response = await handler(...args)
+    console.log(`${JSON.stringify({ event: 'mcp.tool.completed', requestId: requestInfo.headers['Todo-Request-Id'], tool: name, structuredContent: response?.structuredContent })}\n`)
     return response
   } catch (error) {
-    console.log(`${JSON.stringify({ event: 'mcp.tool.error', tool: name, code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
+    console.log(`${JSON.stringify({ event: 'mcp.tool.error', requestId: requestInfo.headers['Todo-Request-Id'], tool: name, code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
     return {
       isError: true,
       content: [

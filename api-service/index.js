@@ -44,11 +44,11 @@ const streamToImageId = async stream => {
   })
 }
 
-morgan.token('id', req => req.id)
+morgan.token('requestId', req => req.headers['Todo-Request-Id'])
 
 const app = express()
 app.use((req, res, next) => {
-  req.id = randomUUID()
+  req.headers['Todo-Request-Id'] = randomUUID()
   next()
 })
 app.use(compression())
@@ -59,7 +59,7 @@ app.use(morgan(
   (tokens, req, res) =>
     `${JSON.stringify({
       event: 'api.request',
-      requestId: tokens.id(req, res),
+      requestId: tokens.requestId(req, res),
       method: tokens.method(req, res),
       url: tokens.url(req, res)
     })}\n`,
@@ -69,7 +69,7 @@ app.use(morgan(
 app.use(morgan((tokens, req, res) =>
   `${JSON.stringify({
     event: 'api.response',
-    requestId: tokens.id(req, res),
+    requestId: tokens.requestId(req, res),
     method: tokens.method(req, res),
     url: tokens.url(req, res),
     status: parseFloat(tokens.status(req, res)),

@@ -5,11 +5,11 @@ import compression from 'compression'
 import { getServerAndTransport } from './mcp.js'
 import { randomUUID } from 'node:crypto'
 
-morgan.token('id', req => req.id)
+morgan.token('requestId', req => req.headers['Todo-Request-Id'])
 
 const app = express()
 app.use((req, res, next) => {
-  req.id = randomUUID()
+  req.headers['Todo-Request-Id'] = randomUUID()
   next()
 })
 app.use(compression())
@@ -20,7 +20,7 @@ app.use(morgan(
   (tokens, req, res) =>
     `${JSON.stringify({
       event: 'mcp.request',
-      requestId: tokens.id(req, res),
+      requestId: tokens.requestId(req, res),
       method: tokens.method(req, res),
       url: tokens.url(req, res)
     })}\n`,
@@ -30,7 +30,7 @@ app.use(morgan(
 app.use(morgan((tokens, req, res) =>
   `${JSON.stringify({
     event: 'mcp.response',
-    requestId: tokens.id(req, res),
+    requestId: tokens.requestId(req, res),
     method: tokens.method(req, res),
     url: tokens.url(req, res),
     status: parseFloat(tokens.status(req, res)),
@@ -52,24 +52,24 @@ app.post('/mcp', async (req, res) => {
     mcpServers.add(mcpServer)
     mcpTransports.add(mcpTransport)
     res.once('close', async () => {
-      console.log(`${JSON.stringify({ event: 'mcp.request.close', requestId: req.id })}\n`)
+      console.log(`${JSON.stringify({ event: 'mcp.request.close', requestId: req.headers['Todo-Request-Id'] })}\n`)
       try {
         await mcpTransport.close()
         mcpTransports.delete(mcpTransport)
       } catch (error) {
-        console.log(`${JSON.stringify({ event: 'mcp.transport.close.error', requestId: req.id, code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
+        console.log(`${JSON.stringify({ event: 'mcp.transport.close.error', requestId: req.headers['Todo-Request-Id'], code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
       }
       try {
         await mcpServer.close()
         mcpServers.delete(mcpServer)
       } catch (error) {
-        console.log(`${JSON.stringify({ event: 'mcp.server.close.error', requestId: req.id, code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
+        console.log(`${JSON.stringify({ event: 'mcp.server.close.error', requestId: req.headers['Todo-Request-Id'], code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
       }
     })
     await mcpServer.connect(mcpTransport)
     await mcpTransport.handleRequest(req, res, req.body)
   } catch (error) {
-    console.log(`${JSON.stringify({ event: 'mcp.post.error', requestId: req.id, code: error.code || 'Error', rror: error.message || `${error}`, stack: error.stack })}\n`)
+    console.log(`${JSON.stringify({ event: 'mcp.post.error', requestId: req.headers['Todo-Request-Id'], code: error.code || 'Error', rror: error.message || `${error}`, stack: error.stack })}\n`)
     if (!res.headersSent) {
       res.status(500).json({
         jsonrpc: '2.0',
