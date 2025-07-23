@@ -58,15 +58,15 @@ app.use(cors())
 app.use(express.json())
 
 app.use((req, res, next) => {
-  const originalSend = res.send
-  const originalJson = res.json
+  const originalSend = res.send.bind(res)
+  const originalJson = res.json.bind(res)
   res.send = (...args) => {
     try {
       res.body = JSON.parse(JSON.stringify(args[0]))
     } catch (error) {
       res.body = null
     }
-    originalSend.apply(res, ...args)
+    originalSend(...args)
   }
   res.json = (...args) => {
     try {
@@ -74,7 +74,7 @@ app.use((req, res, next) => {
     } catch (error) {
       res.body = null
     }
-    originalJson.apply(res, ...args)
+    originalJson(...args)
   }
   next()
 })
@@ -82,7 +82,7 @@ app.use((req, res, next) => {
 app.use(morgan(
   (tokens, req, res) =>
     `${JSON.stringify({
-      event: 'mcp.request',
+      event: 'api.request',
       requestId: tokens.requestId(req, res) || null,
       method: tokens.method(req, res),
       url: tokens.url(req, res),
@@ -93,7 +93,7 @@ app.use(morgan(
 
 app.use(morgan((tokens, req, res) =>
   `${JSON.stringify({
-    event: 'mcp.response',
+    event: 'api.response',
     requestId: tokens.requestId(req, res) || null,
     method: tokens.method(req, res),
     url: tokens.url(req, res),
