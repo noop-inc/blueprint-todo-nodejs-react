@@ -58,14 +58,14 @@ const externalUrlToImageId = async externalUrl => {
   })
 }
 
-const ImageIdSchema = z.string().uuid().describe('Randomly generated version 4 UUID to serve as an identifier for an image linked to a todo item. A maximum of 6 images can be linked to a todo item. Do not expose to end users in client responses. Use to identify links between todo items and images. Cannot be updated after creation.')
+const ImageIdSchema = z.string().uuid().describe('Randomly generated version 4 UUID to serve as an identifier for an image linked to a todo item. Do not expose to end users in client responses. Use to identify links between todo items and images. Cannot be updated after creation.')
 
 const TodoSchema = {
   id: z.string().uuid().describe('Randomly generated version 4 UUID to serve as an identifier for the todo item. Do not expose to end users in client responses. Use to identify links between todo items and images. Cannot be updated after creation.'),
   description: z.string().min(1).max(256).describe('Description of the todo item. Can be updated after creation. Max length: 256.'),
   created: z.number().int().describe('Unix timestamp in milliseconds representing when the todo item was created in reference to the Unix Epoch. Cannot be updated after creation.'),
   completed: z.boolean().default(false).describe('Completion status of the todo item. Can be updated after creation. Default: false.'),
-  images: z.array(ImageIdSchema).min(1).max(6).optional().describe('List of randomly generated version 4 UUIDs to serve as identifiers for images linked to the todo item. Includes file extension of image as a suffix. A maximum of 6 images can be linked to a todo item. Do not expose to end users in client responses. Use to identify links between todo items and images. Cannot be updated after creation. Optional.')
+  images: z.array(ImageIdSchema).min(1).max(6).optional().describe('List of randomly generated version 4 UUIDs to serve as identifiers for images linked to the todo item. Between 0 and 6 (inclusive) images can be linked to a todo item. Do not expose to end users in client responses. Use to identify links between todo items and images. Cannot be updated after creation. Optional.')
 }
 
 const jsonToText = json =>
@@ -169,7 +169,7 @@ const mcpTools = {
   listTodos: {
     config: {
       title: 'List Todo Items',
-      description: 'List all todo items. Returns all todo items. Will also return all linked images if the `withImages` field is `true`.',
+      description: 'Returns all todo items. If linked images are not present in the conversation context, set `withImages` to `true` to also return linked images; otherwise, set `withImages` to `false`.',
       inputSchema: { withImages: z.boolean().default(false).describe('Indicates that linked images should be provided with all todo items. Linked images should only be retrieved if missing from the conversation context.') },
       outputSchema: { items: z.array(z.object(TodoSchema)) },
       annotations: {
@@ -204,7 +204,7 @@ const mcpTools = {
   getTodo: {
     config: {
       title: 'Get Todo Item',
-      description: 'Get a todo item by id. Returns the requested todo item. Will also return linked images if the `withImages` field is `true`.',
+      description: 'Gets a todo item by id. Returns the requested todo item. If linked images are not present in the conversation context, set `withImages` to `true` to also return linked images; otherwise, set `withImages` to `false`.',
       inputSchema: {
         todoId: TodoSchema.id,
         withImages: z.boolean().default(false).describe('Indicates that linked images should be provided with the requested todo item. Linked images should only be retrieved if missing from the conversation context.')
@@ -228,7 +228,7 @@ const mcpTools = {
   createTodo: {
     config: {
       title: 'Create Todo Item',
-      description: 'Create a todo item and its linked images. Only the `description` and `images` fields can be provided. Returns the created todo item and its linked images.',
+      description: 'Creates a todo item and its linked images. Only the `description` and `images` fields can be provided. Returns the created todo item and its linked images.',
       inputSchema: {
         description: TodoSchema.description,
         images: z.array(z.string().url().describe('External URL for image linked to the todo item.')).min(1).max(6).optional().describe('List of external URLs for images linked to todo item. Each image must be smaller than 1MB. If no external URLs are provided, select between 0 and 6 (inclusive) images from `https://images.unsplash.com` appended with the query string value `?w=640&h=640&fit=max&auto=compress&q=50&fm=avif`. Only select images from `https://images.unsplash.com` that are relevant to the provided `description` field. If no relevant images exist, do not provide any images from Unsplash.')
@@ -275,7 +275,7 @@ const mcpTools = {
   updateTodo: {
     config: {
       title: 'Update Todo Item',
-      description: 'Update a todo item by id. Only `description` and the `completed` fields can be updated. Returns updated todo item. Will also return linked images if the `withImages` field is `true`.',
+      description: 'Updates a todo item by id. Only the `description` and `completed` fields can be updated. Returns the updated todo item. If linked images are not present in the conversation context, set `withImages` to `true` to also return linked images; otherwise, set `withImages` to `false`.',
       inputSchema: {
         todoId: TodoSchema.id,
         description: TodoSchema.description.optional(),
@@ -353,10 +353,10 @@ const mcpTools = {
   getImage: {
     config: {
       title: 'Get Image',
-      description: 'Get an image by id. Returns the requested image. Will also return the linked todo item if the `withTodo` field is `true`.',
+      description: 'Gets an image by id. Returns the requested image. If the linked todo item is not present in the conversation context, set `withTodo` to `true` to also return the linked todo item; otherwise, set `withTodo` to `false`.',
       inputSchema: {
         imageId: ImageIdSchema,
-        withTodo: z.boolean().default(false).describe('Indicates that the linked todo item should be returned with the requested image. Linked todo item should only be retrieved if missing from the conversation context.')
+        withTodo: z.boolean().default(false).describe('Indicates that the linked todo item should be returned with the requested image. The linked todo item should only be retrieved if missing from the conversation context.')
       },
       annotations: {
         destructiveHint: false,
