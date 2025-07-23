@@ -5,7 +5,7 @@ import compression from 'compression'
 import { getServerAndTransport } from './mcp.js'
 import { randomUUID } from 'node:crypto'
 
-morgan.token('requestId', req => req.headers['Todo-Request-Id'])
+morgan.token('id', req => req.headers['Todo-Request-Id'])
 
 const app = express()
 app.use((req, res, next) => {
@@ -20,7 +20,7 @@ app.use(morgan(
   (tokens, req, res) =>
     `${JSON.stringify({
       event: 'mcp.request',
-      requestId: tokens.requestId(req, res),
+      requestId: tokens.id(req, res),
       method: tokens.method(req, res),
       url: tokens.url(req, res)
     })}\n`,
@@ -30,7 +30,7 @@ app.use(morgan(
 app.use(morgan((tokens, req, res) =>
   `${JSON.stringify({
     event: 'mcp.response',
-    requestId: tokens.requestId(req, res),
+    requestId: tokens.id(req, res),
     method: tokens.method(req, res),
     url: tokens.url(req, res),
     status: parseFloat(tokens.status(req, res)),

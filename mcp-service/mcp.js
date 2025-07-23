@@ -120,16 +120,19 @@ const structureImageContent = async imageId => {
   ]
 }
 
-const structureTodoItemAndImageContent = async item =>
-  (await Promise.all([
+const structureTodoItemAndImageContent = async item => {
+  if (!item?.image) return []
+  return (await Promise.all([
     structureTodoItemContent(item),
-    ...(item?.images ? item.images.map(async imageId => await structureImageContent(imageId)) : [])
+    ...item.images.map(async imageId => await structureImageContent(imageId))
   ])).flat()
+}
 
 const handlerWrapper = (name, handler) => async (...args) => {
-  const requestId = args[1].requestInfo.headers['Todo-Request-Id']
-  console.log(`${JSON.stringify({ event: 'mcp.tool.start', requestId, tool: name })}\n`)
+  let requestId
   try {
+    requestId = args[1].requestInfo.headers['Todo-Request-Id']
+    console.log(`${JSON.stringify({ event: 'mcp.tool.start', requestId, tool: name })}\n`)
     const response = await handler(...args)
     console.log(`${JSON.stringify({ event: 'mcp.tool.end', requestId, tool: name })}\n`)
     return response
@@ -165,17 +168,17 @@ const mcpTools = {
     handler: async () => {
       const items = await scanTable()
       const structuredContent = { items }
-      const content = []
+      let content
       if (items.length) {
-        content.push(...(await Promise.all(items.map(async item => await structureTodoItemAndImageContent(item)))).flat())
+        content = (await Promise.all(items.map(async item => await structureTodoItemAndImageContent(item)))).flat()
       } else {
-        content.push({
+        content = [{
           type: 'text',
           text: 'There are no todo items',
           annotations: {
             audience: ['assistant']
           }
-        })
+        }]
       }
       return { content, structuredContent }
     }
@@ -343,9 +346,7 @@ export const getServerAndTransport = () => {
     }
   )
   for (const [name, { config, handler }] of Object.entries(mcpTools)) {
-    mcpServer.registerTool(name, config, (...args) =>
-      handlerWrapper(name, handler)(...args)
-    )
+    mcpServer.registerTool(name, config, handlerWrapper(name, handler))
   }
   const mcpTransport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined
