@@ -74,6 +74,7 @@ app.get('/favicon.ico', (req, res) => {
 const mcpServers = new Set()
 const mcpTransports = new Set()
 
+// Handles MCP server requests
 app.post('/mcp', async (req, res) => {
   const requestId = req.headers['Todo-Request-Id'] || null
   try {
@@ -113,25 +114,25 @@ app.post('/mcp', async (req, res) => {
 })
 
 app.get('/mcp', async (req, res) => {
-  res.writeHead(405).end(JSON.stringify({
+  res.status(405).json({
     jsonrpc: '2.0',
     error: {
       code: -32000,
       message: 'Method not allowed'
     },
     id: null
-  }))
+  })
 })
 
 app.delete('/mcp', async (req, res) => {
-  res.writeHead(405).end(JSON.stringify({
+  res.status(405).json({
     jsonrpc: '2.0',
     error: {
       code: -32000,
       message: 'Method not allowed'
     },
     id: null
-  }))
+  })
 })
 
 const port = 3000
@@ -147,7 +148,7 @@ process.once('SIGTERM', async () => {
   log({ level: 'info', event: 'mcp.server.signal', signal: 'SIGTERM' })
   if (mcpTransports.size) {
     log({ level: 'info', event: 'mcp.transports.cleanup' })
-    await Promise.all(mcpTransports.map(async mcpTransport => {
+    await Promise.all(Array.from(mcpTransports).map(async mcpTransport => {
       try {
         await mcpTransport.close()
         mcpTransports.delete(mcpTransport)
@@ -158,7 +159,7 @@ process.once('SIGTERM', async () => {
   }
   if (mcpServers.size) {
     log({ level: 'info', event: 'mcp.servers.cleanup' })
-    await Promise.all(mcpServers.map(async mcpServer => {
+    await Promise.all(Array.from(mcpServers).map(async mcpServer => {
       try {
         await mcpServer.close()
         mcpServers.delete(mcpServer)

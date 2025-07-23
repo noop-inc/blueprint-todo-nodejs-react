@@ -10,12 +10,15 @@ import { getObject, uploadObject, deleteObject } from './s3.js'
 import { log } from './utils.js'
 import { EOL } from 'node:os'
 
-const streamToImageId = async stream => {
+const streamToImageId = async (stream, filename) => {
   const chunks = []
   for await (const chunk of stream) {
     chunks.push(chunk)
   }
   const buffer = Buffer.concat(chunks)
+  if (buffer.length > (1024 ** 2)) {
+    throw new Error(`Image with filename: ${filename} is larger than 1MB. Image must be 1MB or smaller.`)
+  }
   const metadata = await sharp(buffer).metadata()
   const convertFormat = !(
     ['avif', 'webp'].includes(metadata.format) ||
@@ -153,8 +156,6 @@ app.get('/api/todos', async (req, res) => {
 //
 // Payload (req.body):
 //   description / type: String / required
-//
-// Files (req.files):
 //   images / type: File/Buffer / optional
 app.post('/api/todos', async (req, res) => {
   try {
@@ -164,14 +165,14 @@ app.post('/api/todos', async (req, res) => {
     const bb = busboy({
       headers: req.headers,
       // Limit Uploads to 6 files, max size 1MB each per todo
-      limits: { fileSize: (1028 ** 2), files: 6 }
+      limits: { fileSize: (1024 ** 2), files: 6 }
     })
     await new Promise((resolve, reject) => {
       bb.on('file', (name, file, { filename, mimeType }) => {
         if (!mimeType.startsWith('image/')) {
-          return reject(new Error(`Invalid content type for image: ${filename}. Expected image/* but got ${mimeType}.`))
+          return reject(new Error(`Invalid content type for image with filename: ${filename}. Expected image/* but got ${mimeType}.`))
         }
-        imagePromises.push(streamToImageId(file))
+        imagePromises.push(streamToImageId(file, filename))
       })
       bb.on('field', (name, value) => {
         if (name === 'description') {
@@ -244,6 +245,14 @@ app.put('/api/todos/:todoId', async (req, res) => {
     const todoId = params.todoId
     const existingItem = await getItem(todoId)
     const body = req.body
+    if ('description' in body) {
+      if (!body.description?.length) {
+        throw new Error('Description is required')
+      }
+      if (body.description.length > 256) {
+        throw new Error('Description cannot exceed 256 characters.')
+      }
+    }
     const newItem = { ...existingItem, ...body }
     const item = await putItem(newItem)
     res.json(item)
@@ -274,7 +283,7 @@ app.delete('/api/todos/:todoId', async (req, res) => {
       deleteItem(todoId),
       ...images.map(async imageId => await deleteObject(imageId))
     ])
-    // Returned delete todo's id to indicate it was successfully deleted
+    // Returns delete todo's id to indicate it was successfully deleted
     res.json({ id: todoId })
   } catch (error) {
     log({ level: 'error', event: 'api.todo.delete.error', error, requestId: req.headers['Todo-Request-Id'] })

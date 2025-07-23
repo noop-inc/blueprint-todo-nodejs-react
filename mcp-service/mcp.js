@@ -26,8 +26,8 @@ const externalUrlToImageId = async externalUrl => {
   }
   const arrayBuffer = await response.arrayBuffer()
   const buffer = Buffer.from(arrayBuffer)
-  if (buffer.length > (1028 ** 2)) {
-    throw new Error(`Image larger than 1MB at URL: ${externalUrl}. Image must be 1MB or smaller.`)
+  if (buffer.length > (1024 ** 2)) {
+    throw new Error(`Image at URL: ${externalUrl} is larger than 1MB. Image must be 1MB or smaller.`)
   }
   const metadata = await sharp(buffer).metadata()
   const convertFormat = !(
@@ -122,9 +122,9 @@ const structureImageContent = async imageId => {
   ]
 }
 
-const structureTodoItemAndImageContent = async item => {
+const structureTodoItemAndImageContent = async (item, withImages) => {
   const content = structureTodoItemContent(item)
-  if (item.images) {
+  if (withImages && item.images) {
     await Promise.all(item.images.map(async imageId => {
       const imageContent = await structureImageContent(imageId)
       content.push(...imageContent)
@@ -169,8 +169,8 @@ const mcpTools = {
   listTodos: {
     config: {
       title: 'List Todo Items',
-      description: 'List all todo items and their linked images. Returns all todo items and their linked images.',
-      inputSchema: {},
+      description: 'List all todo items. Returns all todo items. Will also return all linked images if the `withImages` field is `true`.',
+      inputSchema: { withImages: z.boolean().default(false).describe('Indicates that linked images should be provided with all todo items. Linked images should only be retrieved if missing from the conversation context.') },
       outputSchema: { items: z.array(z.object(TodoSchema)) },
       annotations: {
         destructiveHint: false,
@@ -180,13 +180,13 @@ const mcpTools = {
         title: 'List Todo Items'
       }
     },
-    handler: async () => {
+    handler: async ({ withImages }) => {
       const items = await scanTable()
       const structuredContent = { items }
       const content = []
       if (items.length) {
         await Promise.all(items.map(async item => {
-          const itemContent = await structureTodoItemAndImageContent(item)
+          const itemContent = await structureTodoItemAndImageContent(item, withImages)
           content.push(...itemContent)
         }))
       } else {
@@ -204,8 +204,11 @@ const mcpTools = {
   getTodo: {
     config: {
       title: 'Get Todo Item',
-      description: 'Get a todo item by id and its linked images. Returns the requested todo item and its linked images.',
-      inputSchema: { todoId: TodoSchema.id },
+      description: 'Get a todo item by id. Returns the requested todo item. Will also return linked images if the `withImages` field is `true`.',
+      inputSchema: {
+        todoId: TodoSchema.id,
+        withImages: z.boolean().default(false).describe('Indicates that linked images should be provided with the requested todo item. Linked images should only be retrieved if missing from the conversation context.')
+      },
       outputSchema: TodoSchema,
       annotations: {
         destructiveHint: false,
@@ -215,10 +218,10 @@ const mcpTools = {
         title: 'Get Todo Item'
       }
     },
-    handler: async ({ todoId }) => {
+    handler: async ({ todoId, withImages }) => {
       const item = await getItem(todoId)
       const structuredContent = item
-      const content = await structureTodoItemAndImageContent(item)
+      const content = await structureTodoItemAndImageContent(item, withImages)
       return { content, structuredContent }
     }
   },
@@ -265,18 +268,19 @@ const mcpTools = {
       if (images.length) newTodo.images = images
       const item = await putItem(newTodo)
       const structuredContent = item
-      const content = await structureTodoItemAndImageContent(item)
+      const content = await structureTodoItemAndImageContent(item, true)
       return { content, structuredContent }
     }
   },
   updateTodo: {
     config: {
       title: 'Update Todo Item',
-      description: 'Update a todo item by id. Only `description` and the `completed` fields can be updated. Returns updated todo item and its linked images.',
+      description: 'Update a todo item by id. Only `description` and the `completed` fields can be updated. Returns updated todo item. Will also return linked images if the `withImages` field is `true`.',
       inputSchema: {
         todoId: TodoSchema.id,
         description: TodoSchema.description.optional(),
-        completed: TodoSchema.completed.optional()
+        completed: TodoSchema.completed.optional(),
+        withImages: z.boolean().default(false).describe('Indicates that linked images should be provided with the updated todo item. Linked images should only be retrieved if missing from the conversation context.')
       },
       outputSchema: TodoSchema,
       annotations: {
@@ -287,12 +291,20 @@ const mcpTools = {
         title: 'Update Todo Item'
       }
     },
-    handler: async ({ todoId, ...body }) => {
+    handler: async ({ todoId, withImages, ...body }) => {
+      if ('description' in body) {
+        if (!body.description?.length) {
+          throw new Error('Description is required')
+        }
+        if (body.description.length > 256) {
+          throw new Error('Description cannot exceed 256 characters.')
+        }
+      }
       const existingItem = await getItem(todoId)
       const updatedItem = { ...existingItem, ...body }
       const item = await putItem(updatedItem)
       const structuredContent = item
-      const content = await structureTodoItemAndImageContent(item)
+      const content = await structureTodoItemAndImageContent(item, withImages)
       return { content, structuredContent }
     }
   },
@@ -341,9 +353,11 @@ const mcpTools = {
   getImage: {
     config: {
       title: 'Get Image',
-      description: 'Get an image by id and its linked todo item. Returns the requested image and its linked todo item.',
-      inputSchema: { imageId: ImageIdSchema },
-      outputSchema: TodoSchema,
+      description: 'Get an image by id. Returns the requested image. Will also return the linked todo item if the `withTodo` field is `true`.',
+      inputSchema: {
+        imageId: ImageIdSchema,
+        withTodo: z.boolean().default(false).describe('Indicates that the linked todo item should be returned with the requested image. Linked todo item should only be retrieved if missing from the conversation context.')
+      },
       annotations: {
         destructiveHint: false,
         idempotentHint: true,
@@ -352,13 +366,14 @@ const mcpTools = {
         title: 'Get Image'
       }
     },
-    handler: async ({ imageId }) => {
+    handler: async ({ imageId, withTodo }) => {
       const content = await structureImageContent(imageId)
-      const items = await scanTable()
-      const item = items.find(item => item?.images?.includes(imageId))
-      const structuredContent = item
-      content.push(...structureTodoItemContent(item))
-      return { content, structuredContent }
+      if (withTodo) {
+        const items = await scanTable()
+        const item = items.find(item => item?.images?.includes(imageId))
+        content.push(...structureTodoItemContent(item))
+      }
+      return { content }
     }
   }
 }
