@@ -82,25 +82,27 @@ app.use((req, res, next) => {
 app.use(morgan(
   (tokens, req, res) =>
     `${JSON.stringify({
+      level: 'info',
       event: 'api.request',
-      requestId: tokens.requestId(req, res) || null,
       method: tokens.method(req, res),
       url: tokens.url(req, res),
-      requestBody: tokens.requestBody(req, res) || null
+      requestBody: tokens.requestBody(req, res) || null,
+      requestId: tokens.requestId(req, res) || null
     })}${EOL}`,
   { immediate: true }
 ))
 
 app.use(morgan((tokens, req, res) =>
   `${JSON.stringify({
+    level: 'info',
     event: 'api.response',
-    requestId: tokens.requestId(req, res) || null,
     method: tokens.method(req, res),
     url: tokens.url(req, res),
     status: parseFloat(tokens.status(req, res)),
     contentLength: parseFloat(tokens.res(req, res, 'content-length')),
     responseTime: parseFloat(tokens['response-time'](req, res)),
-    responseBody: tokens.responseBody(req, res) || null
+    responseBody: tokens.responseBody(req, res) || null,
+    requestId: tokens.requestId(req, res) || null
   })}${EOL}`
 ))
 
@@ -119,12 +121,12 @@ app.get('/api/images/:imageId', async (req, res) => {
     res.set('Content-Type', response.ContentType)
     response.Body.pipe(res)
   } catch (error) {
-    log({ event: 'api.image.get.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
+    log({ level: 'error', event: 'api.image.get.error', error, requestId: req.headers['Todo-Request-Id'] })
     if (!res.headersSent) {
       res.status(500).json({
         code: error.code || 'Error',
         message: error.message || 'Error getting image',
-        stack: error.stack
+        stack: error.stack || null
       })
     }
   }
@@ -136,12 +138,12 @@ app.get('/api/todos', async (req, res) => {
     const items = await scanTable()
     res.json(items)
   } catch (error) {
-    log({ event: 'api.todos.get.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
+    log({ level: 'error', event: 'api.todos.get.error', error, requestId: req.headers['Todo-Request-Id'] })
     if (!res.headersSent) {
       res.status(500).json({
         code: error.code || 'Error',
         message: error.message || 'Error getting todos',
-        stack: error.stack
+        stack: error.stack || null
       })
     }
   }
@@ -172,6 +174,14 @@ app.post('/api/todos', async (req, res) => {
         imagePromises.push(streamToImageId(file))
       })
       bb.on('field', (name, value) => {
+        if (name === 'description') {
+          if (!value?.length) {
+            return reject(new Error('Description is required'))
+          }
+          if (value.length > 256) {
+            return reject(new Error('Description cannot exceed 256 characters.'))
+          }
+        }
         body[name] = value
       })
       bb.once('error', reject)
@@ -179,29 +189,22 @@ app.post('/api/todos', async (req, res) => {
       req.pipe(bb)
     })
     const images = await Promise.all(imagePromises)
-    const description = body.description
-    if (!description?.length) {
-      throw new Error('Description is required')
-    }
-    if (description.length > 256) {
-      throw new Error('Description cannot exceed 256 characters.')
-    }
     const newTodo = {
-      description,
       created: Date.now(),
-      completed: false
+      completed: false,
+      description: body.description
     }
     // If images were included with todo includes array of S3 keys for images with todo
     if (images.length) newTodo.images = images
     const item = await putItem(newTodo)
     res.json(item)
   } catch (error) {
-    log({ event: 'api.todos.create.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
+    log({ level: 'error', event: 'api.todos.create.error', error, requestId: req.headers['Todo-Request-Id'] })
     if (!res.headersSent) {
       res.status(500).json({
         code: error.code || 'Error',
         message: error.message || 'Error creating todo',
-        stack: error.stack
+        stack: error.stack || null
       })
     }
   }
@@ -217,12 +220,12 @@ app.get('/api/todos/:todoId', async (req, res) => {
     const item = await getItem(todoId)
     res.json(item)
   } catch (error) {
-    log({ event: 'api.todo.get.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
+    log({ level: 'error', event: 'api.todo.get.error', error, requestId: req.headers['Todo-Request-Id'] })
     if (!res.headersSent) {
       res.status(500).json({
         code: error.code || 'Error',
         message: error.message || 'Error getting todo',
-        stack: error.stack
+        stack: error.stack || null
       })
     }
   }
@@ -245,12 +248,12 @@ app.put('/api/todos/:todoId', async (req, res) => {
     const item = await putItem(newItem)
     res.json(item)
   } catch (error) {
-    log({ event: 'api.todo.update.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
+    log({ level: 'error', event: 'api.todo.update.error', error, requestId: req.headers['Todo-Request-Id'] })
     if (!res.headersSent) {
       res.status(500).json({
         code: error.code || 'Error',
         message: error.message || 'Error updating todo',
-        stack: error.stack
+        stack: error.stack || null
       })
     }
   }
@@ -274,12 +277,12 @@ app.delete('/api/todos/:todoId', async (req, res) => {
     // Returned delete todo's id to indicate it was successfully deleted
     res.json({ id: todoId })
   } catch (error) {
-    log({ event: 'api.todo.delete.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
+    log({ level: 'error', event: 'api.todo.delete.error', error, requestId: req.headers['Todo-Request-Id'] })
     if (!res.headersSent) {
       res.status(500).json({
         code: error.code || 'Error',
         message: error.message || 'Error deleting todo',
-        stack: error.stack
+        stack: error.stack || null
       })
     }
   }
@@ -288,19 +291,19 @@ app.delete('/api/todos/:todoId', async (req, res) => {
 const port = 3000
 const server = app.listen(port, error => {
   if (error) {
-    log({ event: 'api.server.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
+    log({ level: 'error', event: 'api.server.error', error })
   } else {
-    log({ event: 'api.server.running', port })
+    log({ level: 'info', event: 'api.server.running', port })
   }
 })
 
 process.once('SIGTERM', async () => {
-  log({ event: 'api.server.signal', signal: 'SIGTERM' })
+  log({ level: 'info', event: 'api.server.signal', signal: 'SIGTERM' })
   server.close(error => {
     if (error) {
-      log({ event: 'api.server.closed.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
+      log({ level: 'error', event: 'api.server.closed.error', error })
     } else {
-      log({ event: 'api.server.closed' })
+      log({ level: 'info', event: 'api.server.closed' })
     }
     process.exit(error ? 1 : 0)
   })

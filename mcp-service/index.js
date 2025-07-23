@@ -43,25 +43,27 @@ app.use((req, res, next) => {
 app.use(morgan(
   (tokens, req, res) =>
     `${JSON.stringify({
+      level: 'info',
       event: 'mcp.request',
-      requestId: tokens.requestId(req, res) || null,
       method: tokens.method(req, res),
       url: tokens.url(req, res),
-      requestBody: tokens.requestBody(req, res) || null
+      requestBody: tokens.requestBody(req, res) || null,
+      requestId: tokens.requestId(req, res) || null
     })}${EOL}`,
   { immediate: true }
 ))
 
 app.use(morgan((tokens, req, res) =>
   `${JSON.stringify({
+    level: 'info',
     event: 'mcp.response',
-    requestId: tokens.requestId(req, res) || null,
     method: tokens.method(req, res),
     url: tokens.url(req, res),
     status: parseFloat(tokens.status(req, res)),
     contentLength: parseFloat(tokens.res(req, res, 'content-length')),
     responseTime: parseFloat(tokens['response-time'](req, res)),
-    responseBody: tokens.responseBody(req, res) || null
+    responseBody: tokens.responseBody(req, res) || null,
+    requestId: tokens.requestId(req, res) || null
   })}${EOL}`
 ))
 
@@ -73,29 +75,30 @@ const mcpServers = new Set()
 const mcpTransports = new Set()
 
 app.post('/mcp', async (req, res) => {
+  const requestId = req.headers['Todo-Request-Id'] || null
   try {
     const { mcpServer, mcpTransport } = getServerAndTransport()
     mcpServers.add(mcpServer)
     mcpTransports.add(mcpTransport)
     res.once('close', async () => {
-      log({ event: 'mcp.request.close', requestId: req.headers['Todo-Request-Id'] })
+      log({ level: 'info', event: 'mcp.request.close', requestId })
       try {
         await mcpTransport.close()
         mcpTransports.delete(mcpTransport)
       } catch (error) {
-        log({ event: 'mcp.transport.close.error', requestId: req.headers['Todo-Request-Id'], code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
+        log({ level: 'error', event: 'mcp.transport.close.error', error, requestId })
       }
       try {
         await mcpServer.close()
         mcpServers.delete(mcpServer)
       } catch (error) {
-        log({ event: 'mcp.server.close.error', requestId: req.headers['Todo-Request-Id'], code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
+        log({ level: 'error', event: 'mcp.server.close.error', error, requestId })
       }
     })
     await mcpServer.connect(mcpTransport)
     await mcpTransport.handleRequest(req, res, req.body)
   } catch (error) {
-    log({ event: 'mcp.post.error', requestId: req.headers['Todo-Request-Id'], code: error.code || 'Error', rror: error.message || `${error}`, stack: error.stack })
+    log({ level: 'error', event: 'mcp.post.error', error, requestId })
     if (!res.headersSent) {
       res.status(500).json({
         jsonrpc: '2.0',
@@ -134,41 +137,41 @@ app.delete('/mcp', async (req, res) => {
 const port = 3000
 const server = app.listen(port, error => {
   if (error) {
-    log({ event: 'mcp.server.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
+    log({ level: 'error', event: 'mcp.server.error', error })
   } else {
-    log({ event: 'mcp.server.running', port })
+    log({ level: 'info', event: 'mcp.server.running', port })
   }
 })
 
 process.once('SIGTERM', async () => {
-  log({ event: 'mcp.server.signal', signal: 'SIGTERM' })
+  log({ level: 'info', event: 'mcp.server.signal', signal: 'SIGTERM' })
   if (mcpTransports.size) {
-    log({ event: 'mcp.transports.cleanup' })
+    log({ level: 'info', event: 'mcp.transports.cleanup' })
     await Promise.all(mcpTransports.map(async mcpTransport => {
       try {
         await mcpTransport.close()
         mcpTransports.delete(mcpTransport)
       } catch (error) {
-        log({ event: 'mcp.transports.cleanup.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
+        log({ level: 'error', event: 'mcp.transports.cleanup.error', error })
       }
     }))
   }
   if (mcpServers.size) {
-    log({ event: 'mcp.servers.cleanup' })
+    log({ level: 'info', event: 'mcp.servers.cleanup' })
     await Promise.all(mcpServers.map(async mcpServer => {
       try {
         await mcpServer.close()
         mcpServers.delete(mcpServer)
       } catch (error) {
-        log({ event: 'mcp.servers.cleanup.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
+        log({ level: 'error', event: 'mcp.servers.cleanup.error', error })
       }
     }))
   }
   server.close(error => {
     if (error) {
-      log({ event: 'mcp.server.closed.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
+      log({ level: 'error', event: 'mcp.server.closed.error', error })
     } else {
-      log({ event: 'mcp.server.closed' })
+      log({ level: 'info', event: 'mcp.server.closed' })
     }
     process.exit(error ? 1 : 0)
   })

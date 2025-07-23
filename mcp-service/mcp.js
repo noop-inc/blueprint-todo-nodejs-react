@@ -63,7 +63,7 @@ const ImageIdSchema = z.string().uuid().describe('Randomly generated version 4 U
 const TodoSchema = {
   id: z.string().uuid().describe('Randomly generated version 4 UUID to serve as an identifier for the todo item. Do not expose to end users in client responses. Use to identify links between todo items and images. Cannot be updated after creation.'),
   description: z.string().min(1).max(256).describe('Description of the todo item. Can be updated after creation. Max length: 256.'),
-  created: z.number().describe('Unix timestamp in milliseconds representing when the todo item was created in reference to the Unix Epoch. Cannot be updated after creation.'),
+  created: z.number().int().describe('Unix timestamp in milliseconds representing when the todo item was created in reference to the Unix Epoch. Cannot be updated after creation.'),
   completed: z.boolean().default(false).describe('Completion status of the todo item. Can be updated after creation. Default: false.'),
   images: z.array(ImageIdSchema).min(1).max(6).optional().describe('List of randomly generated version 4 UUIDs to serve as identifiers for images linked to the todo item. Includes file extension of image as a suffix. A maximum of 6 images can be linked to a todo item. Do not expose to end users in client responses. Use to identify links between todo items and images. Cannot be updated after creation. Optional.')
 }
@@ -123,22 +123,25 @@ const structureImageContent = async imageId => {
 }
 
 const structureTodoItemAndImageContent = async item => {
-  if (!item?.image) return []
-  return (await Promise.all([
-    structureTodoItemContent(item),
-    ...item.images.map(async imageId => await structureImageContent(imageId))
-  ])).flat()
+  const content = [structureTodoItemContent(item)]
+  if (item.images) {
+    await Promise.all(item.images.map(async imageId => {
+      const imageContent = await structureImageContent(imageId)
+      content.push(...imageContent)
+    }))
+  }
+  return content
 }
 
 const handlerWrapper = (name, handler) => async (...args) => {
-  const requestId = args[1]?.requestInfo?.headers?.['Todo-Request-Id']
+  const requestId = args[1].requestInfo.headers['Todo-Request-Id']
   try {
-    log({ event: 'mcp.tool.start', requestId, tool: name, params: args[0] || null })
+    log({ level: 'info', event: 'mcp.tool.start', tool: name, params: args[0], requestId })
     const result = await handler(...args)
-    log({ event: 'mcp.tool.end', requestId, tool: name, result: result || null })
+    log({ level: 'info', event: 'mcp.tool.end', tool: name, result, requestId })
     return result
   } catch (error) {
-    log({ event: 'mcp.tool.error', requestId, tool: name, code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
+    log({ level: 'error', event: 'mcp.tool.error', tool: name, error, requestId })
     return {
       isError: true,
       content: [
@@ -169,17 +172,20 @@ const mcpTools = {
     handler: async () => {
       const items = await scanTable()
       const structuredContent = { items }
-      let content
+      const content = []
       if (items.length) {
-        content = (await Promise.all(items.map(async item => await structureTodoItemAndImageContent(item)))).flat()
+        await Promise.all(items.map(async item => {
+          const itemContent = await structureTodoItemAndImageContent(item)
+          content.push(...itemContent)
+        }))
       } else {
-        content = [{
+        content.push({
           type: 'text',
           text: 'There are no todo items',
           annotations: {
             audience: ['assistant']
           }
-        }]
+        })
       }
       return { content, structuredContent }
     }
@@ -222,17 +228,28 @@ const mcpTools = {
         title: 'Create Todo Item'
       }
     },
-    handler: async ({ description, images: files = [] }) => {
-      if (files.length > 6) {
-        throw new Error('Cannot link more than 6 images to todo item')
+    handler: async ({ description, images: files }) => {
+      if (!description?.length) {
+        throw new Error('Description is required')
       }
-      const images = await Promise.all(
-        files.map(async file => await externalUrlToImageId(file))
-      )
+      if (description.length > 256) {
+        throw new Error('Description cannot exceed 256 characters.')
+      }
+      const images = []
+      if (files) {
+        if (files.length > 6) {
+          throw new Error('Cannot link more than 6 images to todo item')
+        }
+        await Promise.all(
+          files.map(async file => {
+            images.push(await externalUrlToImageId(file))
+          })
+        )
+      }
       const newTodo = {
-        description,
         created: Date.now(),
-        completed: false
+        completed: false,
+        description
       }
       if (images.length) newTodo.images = images
       const item = await putItem(newTodo)
