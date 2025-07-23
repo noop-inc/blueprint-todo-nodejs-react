@@ -94,15 +94,34 @@ const structureTodoItemContent = item =>
 
 const structureImageContent = async imageId => {
   const response = await getObject(imageId)
+
   const chunks = []
-  const transformer = sharp()
-    .resize({ width: 160, height: 160, fit: sharp.fit.inside, withoutEnlargement: true })
-    .toFormat('jpeg', { quality: 50, chromaSubsampling: '4:2:0' })
-  for await (const chunk of response.Body.pipe(transformer)) {
+  for await (const chunk of response.Body) {
     chunks.push(chunk)
   }
   const buffer = Buffer.concat(chunks)
-  const base64 = buffer.toString('base64')
+  const metadata = await sharp(buffer).metadata()
+  const convertFormat = metadata.format !== 'webp'
+  const convertSize = (metadata.height > 160) || (metadata.width > 160)
+  let base64
+  if (convertSize || convertFormat) {
+    let transformer = sharp()
+    if (convertSize) {
+      transformer = transformer.resize({ width: 640, height: 640, fit: sharp.fit.inside, withoutEnlargement: true })
+    }
+    if (convertFormat) {
+      transformer = transformer.toFormat('webp', { quality: 50, alphaQuality: 50, lossless: false, nearLossless: false, smartSubsample: false })
+    }
+    const transformedChunks = []
+    for await (const chunk of Readable.from(buffer).pipe(transformer)) {
+      chunks.push(chunk)
+    }
+    const transformedBuffer = Buffer.concat(transformedChunks)
+    base64 = transformedBuffer.toString('base64')
+  } else {
+    base64 = buffer.toString('base64')
+  }
+
   return [
     {
       type: 'text',
@@ -114,7 +133,7 @@ const structureImageContent = async imageId => {
     {
       type: 'image',
       data: base64,
-      mimeType: 'image/jpeg',
+      mimeType: 'image/webp',
       annotations: {
         audience: ['user', 'assistant']
       }
