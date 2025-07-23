@@ -35,15 +35,18 @@ const externalUrlToImageId = async externalUrl => {
     ((metadata.format === 'heif') && (metadata.compression === 'av1'))
   )
   const convertSize = (metadata.height > 640) || (metadata.width > 640)
-  let transformer
+  let body
   if (convertSize || convertFormat) {
-    transformer = sharp()
+    let transformer = sharp()
     if (convertSize) {
       transformer = transformer.resize({ width: 640, height: 640, fit: sharp.fit.inside, withoutEnlargement: true })
     }
     if (convertFormat) {
       transformer = transformer.toFormat('avif', { quality: 50, lossless: false, chromaSubsampling: '4:2:0', bitdepth: 8 })
     }
+    body = Readable.from(buffer).pipe(transformer)
+  } else {
+    body = buffer
   }
   const format = (
     convertFormat ||
@@ -53,7 +56,7 @@ const externalUrlToImageId = async externalUrl => {
     ? 'avif'
     : 'webp'
   return await uploadObject({
-    body: transformer ? Readable.from(buffer).pipe(transformer) : buffer,
+    body,
     mimeType: `image/${format}`
   })
 }
@@ -112,12 +115,11 @@ const structureImageContent = async imageId => {
     if (convertFormat) {
       transformer = transformer.toFormat('webp', { quality: 50, alphaQuality: 50, lossless: false, nearLossless: false, smartSubsample: false })
     }
-    const transformedChunks = []
+    const chunks = []
     for await (const chunk of Readable.from(buffer).pipe(transformer)) {
       chunks.push(chunk)
     }
-    const transformedBuffer = Buffer.concat(transformedChunks)
-    base64 = transformedBuffer.toString('base64')
+    base64 = Buffer.concat(chunks).toString('base64')
   } else {
     base64 = buffer.toString('base64')
   }

@@ -25,15 +25,18 @@ const streamToImageId = async (stream, filename) => {
     ((metadata.format === 'heif') && (metadata.compression === 'av1'))
   )
   const convertSize = (metadata.height > 640) || (metadata.width > 640)
-  let transformer
+  let body
   if (convertSize || convertFormat) {
-    transformer = sharp()
+    let transformer = sharp()
     if (convertSize) {
       transformer = transformer.resize({ width: 640, height: 640, fit: sharp.fit.inside, withoutEnlargement: true })
     }
     if (convertFormat) {
       transformer = transformer.toFormat('avif', { quality: 50, lossless: false, chromaSubsampling: '4:2:0', bitdepth: 8 })
     }
+    body = Readable.from(buffer).pipe(transformer)
+  } else {
+    body = buffer
   }
   const format = (
     convertFormat ||
@@ -43,7 +46,7 @@ const streamToImageId = async (stream, filename) => {
     ? 'avif'
     : 'webp'
   return await uploadObject({
-    body: transformer ? Readable.from(buffer).pipe(transformer) : buffer,
+    body,
     mimeType: `image/${format}`
   })
 }
