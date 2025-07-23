@@ -130,11 +130,11 @@ const structureTodoItemAndImageContent = async item => {
   ])).flat()
 }
 
-const handlerWrapper = (name, handler) => async (params, ...args) => {
+const handlerWrapper = (name, handler) => async (...args) => {
   const requestId = args[1]?.requestInfo?.headers?.['Todo-Request-Id']
   try {
-    log({ event: 'mcp.tool.start', requestId, tool: name, params: params || null })
-    const result = await handler(params, ...args)
+    log({ event: 'mcp.tool.start', requestId, tool: name, params: args[0] || null })
+    const result = await handler(...args)
     log({ event: 'mcp.tool.end', requestId, tool: name, result: result || null })
     return result
   } catch (error) {

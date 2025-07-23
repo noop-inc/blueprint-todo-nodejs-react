@@ -60,21 +60,21 @@ app.use(express.json())
 app.use((req, res, next) => {
   const originalSend = res.send
   const originalJson = res.json
-  res.send = (body, ...args) => {
+  res.send = (...args) => {
     try {
-      res.body = JSON.parse(JSON.stringify(body))
+      res.body = JSON.parse(JSON.stringify(args[0]))
     } catch (error) {
       res.body = null
     }
-    originalSend.apply(res, body, ...args)
+    originalSend.apply(res, ...args)
   }
-  res.json = (body, ...args) => {
+  res.json = (...args) => {
     try {
-      res.body = JSON.parse(JSON.stringify(body))
+      res.body = JSON.parse(JSON.stringify(args[0]))
     } catch (error) {
       res.body = null
     }
-    originalJson.apply(res, body, ...args)
+    originalJson.apply(res, ...args)
   }
   next()
 })
