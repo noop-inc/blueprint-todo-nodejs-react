@@ -61,12 +61,20 @@ app.use((req, res, next) => {
   const originalSend = res.send
   const originalJson = res.json
   res.send = (body, ...args) => {
-    res.body = JSON.parse(JSON.stringify(body))
-    return originalSend.apply(res, body, ...args)
+    try {
+      res.body = JSON.parse(JSON.stringify(body))
+    } catch (error) {
+      res.body = null
+    }
+    originalSend.apply(res, body, ...args)
   }
   res.json = (body, ...args) => {
-    res.body = JSON.parse(JSON.stringify(body))
-    return originalJson.apply(res, body, ...args)
+    try {
+      res.body = JSON.parse(JSON.stringify(body))
+    } catch (error) {
+      res.body = null
+    }
+    originalJson.apply(res, body, ...args)
   }
   next()
 })
@@ -74,25 +82,25 @@ app.use((req, res, next) => {
 app.use(morgan(
   (tokens, req, res) =>
     `${JSON.stringify({
-      event: 'api.request',
-      requestId: tokens.requestId(req, res),
+      event: 'mcp.request',
+      requestId: tokens.requestId(req, res) || null,
       method: tokens.method(req, res),
       url: tokens.url(req, res),
-      body: tokens.requestBody(req, res)
+      requestBody: tokens.requestBody(req, res) || null
     })}${EOL}`,
   { immediate: true }
 ))
 
 app.use(morgan((tokens, req, res) =>
   `${JSON.stringify({
-    event: 'api.response',
-    requestId: tokens.requestId(req, res),
+    event: 'mcp.response',
+    requestId: tokens.requestId(req, res) || null,
     method: tokens.method(req, res),
     url: tokens.url(req, res),
     status: parseFloat(tokens.status(req, res)),
     contentLength: parseFloat(tokens.res(req, res, 'content-length')),
     responseTime: parseFloat(tokens['response-time'](req, res)),
-    body: tokens.responseBody(req, res)
+    responseBody: tokens.responseBody(req, res) || null
   })}${EOL}`
 ))
 

@@ -133,9 +133,9 @@ const structureTodoItemAndImageContent = async item => {
 const handlerWrapper = (name, handler) => async (params, ...args) => {
   const requestId = args[1]?.requestInfo?.headers?.['Todo-Request-Id']
   try {
-    log({ event: 'mcp.tool.start', requestId, tool: name, params })
+    log({ event: 'mcp.tool.start', requestId, tool: name, params: params || null })
     const result = await handler(params, ...args)
-    log({ event: 'mcp.tool.end', requestId, tool: name, result })
+    log({ event: 'mcp.tool.end', requestId, tool: name, result: result || null })
     return result
   } catch (error) {
     log({ event: 'mcp.tool.error', requestId, tool: name, code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })

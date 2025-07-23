@@ -8,7 +8,7 @@ import { EOL } from 'node:os'
 
 morgan.token('requestId', req => req.headers['Todo-Request-Id'])
 morgan.token('requestBody', req => req.body)
-morgan.token('responseBody', (req, res) => res._body)
+morgan.token('responseBody', (req, res) => res.body)
 
 const app = express()
 app.use((req, res, next) => {
@@ -23,19 +23,19 @@ app.use((req, res, next) => {
   const originalJson = res.json
   res.send = (body, ...args) => {
     try {
-      res._body = JSON.parse(JSON.stringify(body))
+      res.body = JSON.parse(JSON.stringify(body))
     } catch (error) {
-      // swallow for now
+      res.body = null
     }
-    return originalSend.apply(res, body, ...args)
+    originalSend.apply(res, body, ...args)
   }
   res.json = (body, ...args) => {
     try {
-      res._body = JSON.parse(JSON.stringify(body))
+      res.body = JSON.parse(JSON.stringify(body))
     } catch (error) {
-      // swallow for now
+      res.body = null
     }
-    return originalJson.apply(res, body, ...args)
+    originalJson.apply(res, body, ...args)
   }
   next()
 })
@@ -44,10 +44,10 @@ app.use(morgan(
   (tokens, req, res) =>
     `${JSON.stringify({
       event: 'mcp.request',
-      requestId: tokens.requestId(req, res),
+      requestId: tokens.requestId(req, res) || null,
       method: tokens.method(req, res),
       url: tokens.url(req, res),
-      body: tokens.requestBody(req, res)
+      requestBody: tokens.requestBody(req, res) || null
     })}${EOL}`,
   { immediate: true }
 ))
@@ -55,13 +55,13 @@ app.use(morgan(
 app.use(morgan((tokens, req, res) =>
   `${JSON.stringify({
     event: 'mcp.response',
-    requestId: tokens.requestId(req, res),
+    requestId: tokens.requestId(req, res) || null,
     method: tokens.method(req, res),
     url: tokens.url(req, res),
     status: parseFloat(tokens.status(req, res)),
     contentLength: parseFloat(tokens.res(req, res, 'content-length')),
     responseTime: parseFloat(tokens['response-time'](req, res)),
-    body: tokens.responseBody(req, res)
+    responseBody: tokens.responseBody(req, res) || null
   })}${EOL}`
 ))
 
