@@ -123,7 +123,7 @@ const structureImageContent = async imageId => {
 }
 
 const structureTodoItemAndImageContent = async item => {
-  const content = [structureTodoItemContent(item)]
+  const content = structureTodoItemContent(item)
   if (item.images) {
     await Promise.all(item.images.map(async imageId => {
       const imageContent = await structureImageContent(imageId)
@@ -138,7 +138,18 @@ const handlerWrapper = (name, handler) => async (...args) => {
   try {
     log({ level: 'info', event: 'mcp.tool.start', tool: name, params: args[0], requestId })
     const result = await handler(...args)
-    log({ level: 'info', event: 'mcp.tool.end', tool: name, result, requestId })
+    let content = result?.content || null
+    const structuredContent = result?.structuredContent || null
+    if (content) {
+      content = content.map(subContent => {
+        if (subContent.type === 'image') {
+          subContent = { ...subContent }
+          subContent.data = null
+        }
+        return subContent
+      })
+    }
+    log({ level: 'info', event: 'mcp.tool.end', tool: name, result: { content, structuredContent }, requestId })
     return result
   } catch (error) {
     log({ level: 'error', event: 'mcp.tool.error', tool: name, error, requestId })
