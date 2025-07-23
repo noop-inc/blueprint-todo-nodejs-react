@@ -7,6 +7,8 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import sharp from 'sharp'
 import { scanTable, getItem, putItem, deleteItem } from './dynamodb.js'
 import { getObject, uploadObject, deleteObject } from './s3.js'
+import { log } from './utils.js'
+import { EOL } from 'node:os'
 
 const instructions = await readFile(new URL('./instructions.md', import.meta.url), { encoding: 'utf-8' })
 
@@ -56,11 +58,11 @@ const externalUrlToImageId = async externalUrl => {
   })
 }
 
-const ImageIdSchema = z.string().describe('Randomly generated version 4 UUID to serve as an identifier for an image linked to a todo item. A maximum of 6 images can be linked to a todo item. Do not expose to end users in client responses. Use to identify links between todo items and images. Cannot be updated after creation.')
+const ImageIdSchema = z.string().uuid().describe('Randomly generated version 4 UUID to serve as an identifier for an image linked to a todo item. A maximum of 6 images can be linked to a todo item. Do not expose to end users in client responses. Use to identify links between todo items and images. Cannot be updated after creation.')
 
 const TodoSchema = {
-  id: z.string().describe('Randomly generated version 4 UUID to serve as an identifier for the todo item. Do not expose to end users in client responses. Use to identify links between todo items and images. Cannot be updated after creation.'),
-  description: z.string().describe('Description of the todo item. Can be updated after creation.'),
+  id: z.string().uuid().describe('Randomly generated version 4 UUID to serve as an identifier for the todo item. Do not expose to end users in client responses. Use to identify links between todo items and images. Cannot be updated after creation.'),
+  description: z.string().min(1).max(256).describe('Description of the todo item. Can be updated after creation. Max length: 256.'),
   created: z.number().describe('Unix timestamp in milliseconds representing when the todo item was created in reference to the Unix Epoch. Cannot be updated after creation.'),
   completed: z.boolean().default(false).describe('Completion status of the todo item. Can be updated after creation. Default: false.'),
   images: z.array(ImageIdSchema).min(1).max(6).optional().describe('List of randomly generated version 4 UUIDs to serve as identifiers for images linked to the todo item. Includes file extension of image as a suffix. A maximum of 6 images can be linked to a todo item. Do not expose to end users in client responses. Use to identify links between todo items and images. Cannot be updated after creation. Optional.')
@@ -70,7 +72,7 @@ const jsonToText = json =>
   Object.keys(TodoSchema)
     .filter(key => key in json)
     .map(key => `${key}: ${Array.isArray(json[key]) ? `[${json[key].join(', ')}]` : json[key]}`)
-    .join('\n')
+    .join(EOL)
 
 const structureTodoItemContent = item =>
   [
@@ -128,16 +130,15 @@ const structureTodoItemAndImageContent = async item => {
   ])).flat()
 }
 
-const handlerWrapper = (name, handler) => async (...args) => {
-  let requestId
+const handlerWrapper = (name, handler) => async (params, ...args) => {
+  const requestId = args[1]?.requestInfo?.headers?.['Todo-Request-Id']
   try {
-    requestId = args[1].requestInfo.headers['Todo-Request-Id']
-    console.log(`${JSON.stringify({ event: 'mcp.tool.start', requestId, tool: name })}\n`)
-    const response = await handler(...args)
-    console.log(`${JSON.stringify({ event: 'mcp.tool.end', requestId, tool: name })}\n`)
-    return response
+    log({ event: 'mcp.tool.start', requestId, tool: name, params })
+    const result = await handler(params, ...args)
+    log({ event: 'mcp.tool.end', requestId, tool: name, result })
+    return result
   } catch (error) {
-    console.log(`${JSON.stringify({ event: 'mcp.tool.error', requestId, tool: name, code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
+    log({ event: 'mcp.tool.error', requestId, tool: name, code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
     return {
       isError: true,
       content: [
@@ -210,7 +211,7 @@ const mcpTools = {
       description: 'Create a todo item and its linked images. Only the `description` and `images` fields can be provided. Returns the created todo item and its linked images.',
       inputSchema: {
         description: TodoSchema.description,
-        images: z.array(z.string().describe('External URL for image linked to the todo item.')).min(1).max(6).optional().describe('List of external URLs for images linked to todo item. Each image must be smaller than 1MB. If no external URLs are provided, select between 0 and 6 (inclusive) images from `https://images.unsplash.com` appended with the query string value `?w=640&h=640&fit=max&auto=compress&q=50&fm=avif`. Only select images from `https://images.unsplash.com` that are relevant to the provided `description` field. If no relevant images exist, do not provide any images from Unsplash.')
+        images: z.array(z.string().url().describe('External URL for image linked to the todo item.')).min(1).max(6).optional().describe('List of external URLs for images linked to todo item. Each image must be smaller than 1MB. If no external URLs are provided, select between 0 and 6 (inclusive) images from `https://images.unsplash.com` appended with the query string value `?w=640&h=640&fit=max&auto=compress&q=50&fm=avif`. Only select images from `https://images.unsplash.com` that are relevant to the provided `description` field. If no relevant images exist, do not provide any images from Unsplash.')
       },
       outputSchema: TodoSchema,
       annotations: {

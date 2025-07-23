@@ -199,6 +199,8 @@ const App = () => {
                           className='form-input edit-description'
                           type='text'
                           autoComplete='off'
+                          minLength='1'
+                          maxLength='256'
                           onBlur={() => setEditId(null)}
                         />
                         <input

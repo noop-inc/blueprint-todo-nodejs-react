@@ -1,42 +1,68 @@
 import express from 'express'
 import morgan from 'morgan'
 import cors from 'cors'
-import compression from 'compression'
 import { getServerAndTransport } from './mcp.js'
 import { randomUUID } from 'node:crypto'
+import { log } from './utils.js'
+import { EOL } from 'node:os'
 
-morgan.token('id', req => req.headers['Todo-Request-Id'])
+morgan.token('requestId', req => req.headers['Todo-Request-Id'])
+morgan.token('requestBody', req => req.body)
+morgan.token('responseBody', (req, res) => res._body)
 
 const app = express()
 app.use((req, res, next) => {
   req.headers['Todo-Request-Id'] = randomUUID()
   next()
 })
-app.use(compression())
 app.use(cors())
 app.use(express.json())
+
+app.use((req, res, next) => {
+  const originalSend = res.send
+  const originalJson = res.json
+  res.send = (body, ...args) => {
+    try {
+      res._body = JSON.parse(JSON.stringify(body))
+    } catch (error) {
+      // swallow for now
+    }
+    return originalSend.apply(res, body, ...args)
+  }
+  res.json = (body, ...args) => {
+    try {
+      res._body = JSON.parse(JSON.stringify(body))
+    } catch (error) {
+      // swallow for now
+    }
+    return originalJson.apply(res, body, ...args)
+  }
+  next()
+})
 
 app.use(morgan(
   (tokens, req, res) =>
     `${JSON.stringify({
       event: 'mcp.request',
-      requestId: tokens.id(req, res),
+      requestId: tokens.requestId(req, res),
       method: tokens.method(req, res),
-      url: tokens.url(req, res)
-    })}\n`,
+      url: tokens.url(req, res),
+      body: tokens.requestBody(req, res)
+    })}${EOL}`,
   { immediate: true }
 ))
 
 app.use(morgan((tokens, req, res) =>
   `${JSON.stringify({
     event: 'mcp.response',
-    requestId: tokens.id(req, res),
+    requestId: tokens.requestId(req, res),
     method: tokens.method(req, res),
     url: tokens.url(req, res),
     status: parseFloat(tokens.status(req, res)),
     contentLength: parseFloat(tokens.res(req, res, 'content-length')),
-    responseTime: parseFloat(tokens['response-time'](req, res))
-  })}\n`
+    responseTime: parseFloat(tokens['response-time'](req, res)),
+    body: tokens.responseBody(req, res)
+  })}${EOL}`
 ))
 
 app.get('/favicon.ico', (req, res) => {
@@ -52,24 +78,24 @@ app.post('/mcp', async (req, res) => {
     mcpServers.add(mcpServer)
     mcpTransports.add(mcpTransport)
     res.once('close', async () => {
-      console.log(`${JSON.stringify({ event: 'mcp.request.close', requestId: req.headers['Todo-Request-Id'] })}\n`)
+      log({ event: 'mcp.request.close', requestId: req.headers['Todo-Request-Id'] })
       try {
         await mcpTransport.close()
         mcpTransports.delete(mcpTransport)
       } catch (error) {
-        console.log(`${JSON.stringify({ event: 'mcp.transport.close.error', requestId: req.headers['Todo-Request-Id'], code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
+        log({ event: 'mcp.transport.close.error', requestId: req.headers['Todo-Request-Id'], code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
       }
       try {
         await mcpServer.close()
         mcpServers.delete(mcpServer)
       } catch (error) {
-        console.log(`${JSON.stringify({ event: 'mcp.server.close.error', requestId: req.headers['Todo-Request-Id'], code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
+        log({ event: 'mcp.server.close.error', requestId: req.headers['Todo-Request-Id'], code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
       }
     })
     await mcpServer.connect(mcpTransport)
     await mcpTransport.handleRequest(req, res, req.body)
   } catch (error) {
-    console.log(`${JSON.stringify({ event: 'mcp.post.error', requestId: req.headers['Todo-Request-Id'], code: error.code || 'Error', rror: error.message || `${error}`, stack: error.stack })}\n`)
+    log({ event: 'mcp.post.error', requestId: req.headers['Todo-Request-Id'], code: error.code || 'Error', rror: error.message || `${error}`, stack: error.stack })
     if (!res.headersSent) {
       res.status(500).json({
         jsonrpc: '2.0',
@@ -108,41 +134,41 @@ app.delete('/mcp', async (req, res) => {
 const port = 3000
 const server = app.listen(port, error => {
   if (error) {
-    console.log(`${JSON.stringify({ event: 'mcp.server.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
+    log({ event: 'mcp.server.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
   } else {
-    console.log(`${JSON.stringify({ event: 'mcp.server.running', port })}\n`)
+    log({ event: 'mcp.server.running', port })
   }
 })
 
 process.once('SIGTERM', async () => {
-  console.log(`${JSON.stringify({ event: 'mcp.server.signal', signal: 'SIGTERM' })}\n`)
+  log({ event: 'mcp.server.signal', signal: 'SIGTERM' })
   if (mcpTransports.size) {
-    console.log(`${JSON.stringify({ event: 'mcp.transports.cleanup' })}\n`)
+    log({ event: 'mcp.transports.cleanup' })
     await Promise.all(mcpTransports.map(async mcpTransport => {
       try {
         await mcpTransport.close()
         mcpTransports.delete(mcpTransport)
       } catch (error) {
-        console.log(`${JSON.stringify({ event: 'mcp.transports.cleanup.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
+        log({ event: 'mcp.transports.cleanup.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
       }
     }))
   }
   if (mcpServers.size) {
-    console.log(`${JSON.stringify({ event: 'mcp.servers.cleanup' })}\n`)
+    log({ event: 'mcp.servers.cleanup' })
     await Promise.all(mcpServers.map(async mcpServer => {
       try {
         await mcpServer.close()
         mcpServers.delete(mcpServer)
       } catch (error) {
-        console.log(`${JSON.stringify({ event: 'mcp.servers.cleanup.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
+        log({ event: 'mcp.servers.cleanup.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
       }
     }))
   }
   server.close(error => {
     if (error) {
-      console.log(`${JSON.stringify({ event: 'mcp.server.closed.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
+      log({ event: 'mcp.server.closed.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
     } else {
-      console.log(`${JSON.stringify({ event: 'mcp.server.closed' })}\n`)
+      log({ event: 'mcp.server.closed' })
     }
     process.exit(error ? 1 : 0)
   })

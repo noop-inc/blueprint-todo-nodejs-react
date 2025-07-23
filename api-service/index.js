@@ -1,13 +1,14 @@
 import express from 'express'
 import morgan from 'morgan'
 import cors from 'cors'
-import compression from 'compression'
 import sharp from 'sharp'
 import { Readable } from 'node:stream'
-import { scanTable, getItem, putItem, deleteItem } from './dynamodb.js'
-import { getObject, uploadObject, deleteObject } from './s3.js'
 import busboy from 'busboy'
 import { randomUUID } from 'node:crypto'
+import { scanTable, getItem, putItem, deleteItem } from './dynamodb.js'
+import { getObject, uploadObject, deleteObject } from './s3.js'
+import { log } from './utils.js'
+import { EOL } from 'node:os'
 
 const streamToImageId = async stream => {
   const chunks = []
@@ -44,38 +45,55 @@ const streamToImageId = async stream => {
   })
 }
 
-morgan.token('id', req => req.headers['Todo-Request-Id'])
+morgan.token('requestId', req => req.headers['Todo-Request-Id'])
+morgan.token('requestBody', req => req.body)
+morgan.token('responseBody', (req, res) => res.body)
 
 const app = express()
 app.use((req, res, next) => {
   req.headers['Todo-Request-Id'] = randomUUID()
   next()
 })
-app.use(compression())
 app.use(cors())
 app.use(express.json())
+
+app.use((req, res, next) => {
+  const originalSend = res.send
+  const originalJson = res.json
+  res.send = (body, ...args) => {
+    res.body = JSON.parse(JSON.stringify(body))
+    return originalSend.apply(res, body, ...args)
+  }
+  res.json = (body, ...args) => {
+    res.body = JSON.parse(JSON.stringify(body))
+    return originalJson.apply(res, body, ...args)
+  }
+  next()
+})
 
 app.use(morgan(
   (tokens, req, res) =>
     `${JSON.stringify({
       event: 'api.request',
-      requestId: tokens.id(req, res),
+      requestId: tokens.requestId(req, res),
       method: tokens.method(req, res),
-      url: tokens.url(req, res)
-    })}\n`,
+      url: tokens.url(req, res),
+      body: tokens.requestBody(req, res)
+    })}${EOL}`,
   { immediate: true }
 ))
 
 app.use(morgan((tokens, req, res) =>
   `${JSON.stringify({
     event: 'api.response',
-    requestId: tokens.id(req, res),
+    requestId: tokens.requestId(req, res),
     method: tokens.method(req, res),
     url: tokens.url(req, res),
     status: parseFloat(tokens.status(req, res)),
     contentLength: parseFloat(tokens.res(req, res, 'content-length')),
-    responseTime: parseFloat(tokens['response-time'](req, res))
-  })}\n`
+    responseTime: parseFloat(tokens['response-time'](req, res)),
+    body: tokens.responseBody(req, res)
+  })}${EOL}`
 ))
 
 app.get('/favicon.ico', (req, res) => {
@@ -91,10 +109,9 @@ app.get('/api/images/:imageId', async (req, res) => {
     const imageId = params.imageId
     const response = await getObject(imageId)
     res.set('Content-Type', response.ContentType)
-    res.set('Cache-Control', 'max-age=31536000')
     response.Body.pipe(res)
   } catch (error) {
-    console.log(`${JSON.stringify({ event: 'api.image.get.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
+    log({ event: 'api.image.get.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
     if (!res.headersSent) {
       res.status(500).json({
         code: error.code || 'Error',
@@ -111,7 +128,7 @@ app.get('/api/todos', async (req, res) => {
     const items = await scanTable()
     res.json(items)
   } catch (error) {
-    console.log(`${JSON.stringify({ event: 'api.todos.get.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
+    log({ event: 'api.todos.get.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
     if (!res.headersSent) {
       res.status(500).json({
         code: error.code || 'Error',
@@ -155,6 +172,12 @@ app.post('/api/todos', async (req, res) => {
     })
     const images = await Promise.all(imagePromises)
     const description = body.description
+    if (!description?.length) {
+      throw new Error('Description is required')
+    }
+    if (description.length > 256) {
+      throw new Error('Description cannot exceed 256 characters.')
+    }
     const newTodo = {
       description,
       created: Date.now(),
@@ -165,7 +188,7 @@ app.post('/api/todos', async (req, res) => {
     const item = await putItem(newTodo)
     res.json(item)
   } catch (error) {
-    console.log(`${JSON.stringify({ event: 'api.todos.create.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
+    log({ event: 'api.todos.create.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
     if (!res.headersSent) {
       res.status(500).json({
         code: error.code || 'Error',
@@ -186,7 +209,7 @@ app.get('/api/todos/:todoId', async (req, res) => {
     const item = await getItem(todoId)
     res.json(item)
   } catch (error) {
-    console.log(`${JSON.stringify({ event: 'api.todo.get.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
+    log({ event: 'api.todo.get.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
     if (!res.headersSent) {
       res.status(500).json({
         code: error.code || 'Error',
@@ -214,7 +237,7 @@ app.put('/api/todos/:todoId', async (req, res) => {
     const item = await putItem(newItem)
     res.json(item)
   } catch (error) {
-    console.log(`${JSON.stringify({ event: 'api.todo.update.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
+    log({ event: 'api.todo.update.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
     if (!res.headersSent) {
       res.status(500).json({
         code: error.code || 'Error',
@@ -243,7 +266,7 @@ app.delete('/api/todos/:todoId', async (req, res) => {
     // Returned delete todo's id to indicate it was successfully deleted
     res.json({ id: todoId })
   } catch (error) {
-    console.log(`${JSON.stringify({ event: 'api.todo.delete.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
+    log({ event: 'api.todo.delete.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
     if (!res.headersSent) {
       res.status(500).json({
         code: error.code || 'Error',
@@ -257,19 +280,19 @@ app.delete('/api/todos/:todoId', async (req, res) => {
 const port = 3000
 const server = app.listen(port, error => {
   if (error) {
-    console.log(`${JSON.stringify({ event: 'api.server.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
+    log({ event: 'api.server.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
   } else {
-    console.log(`${JSON.stringify({ event: 'api.server.running', port })}\n`)
+    log({ event: 'api.server.running', port })
   }
 })
 
 process.once('SIGTERM', async () => {
-  console.log(`${JSON.stringify({ event: 'api.server.signal', signal: 'SIGTERM' })}\n`)
+  log({ event: 'api.server.signal', signal: 'SIGTERM' })
   server.close(error => {
     if (error) {
-      console.log(`${JSON.stringify({ event: 'api.server.closed.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })}\n`)
+      log({ event: 'api.server.closed.error', code: error.code || 'Error', error: error.message || `${error}`, stack: error.stack })
     } else {
-      console.log(`${JSON.stringify({ event: 'api.server.closed' })}\n`)
+      log({ event: 'api.server.closed' })
     }
     process.exit(error ? 1 : 0)
   })
