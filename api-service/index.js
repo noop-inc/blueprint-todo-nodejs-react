@@ -277,7 +277,7 @@ app.delete('/api/todos/:todoId', async (req, res) => {
     const todoId = params.todoId
     // Gets todo to be deleted from DynamoDB
     const item = await getItem(todoId)
-    const images = item?.images || []
+    const images = item.images || []
     // If todo has associated images in S3, then delete those images
     await Promise.all([
       deleteItem(todoId),

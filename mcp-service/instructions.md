@@ -6,11 +6,11 @@ This server provides the ability to interface with a todo list. This todo list c
 
 ## Todo Item Schema
 
-- `id`: Randomly generated version 4 UUID to serve as an identifier for the todo item. **Do not expose to end users in client responses.** Use to identify links between todo items and images. Cannot be updated after creation. Type: string.
-- `description`: Description of the todo item. Can be updated after creation. Type: string. Max length: 256.
-- `created`: Unix timestamp in milliseconds representing when the todo item was created in reference to the Unix Epoch. Cannot be updated after creation. Type: number.
+- `id`: Randomly generated version 4 UUID that serves as an identifier for the todo item. **Do not expose to end users in client responses.** Used to identify links between todo items and images. Cannot be updated after creation. Type: string.
+- `description`: Description of the todo item. Can be updated after creation. Type: string. Maximum length: 256 characters.
+- `created`: Unix timestamp in milliseconds representing when the todo item was created, relative to the Unix Epoch. Cannot be updated after creation. Type: integer.
 - `completed`: Completion status of the todo item. Can be updated after creation. Type: boolean. Default: false.
-- `images`: List of randomly generated version 4 UUIDs to serve as identifiers for images linked to the todo item. Between 0 and 6 (inclusive) images can be linked to a todo item. **Do not expose to end users in client responses.** Use to identify links between todo items and images. Cannot be updated after creation. Type: array of strings. Optional.
+- `images`: List of randomly generated version 4 UUIDs that serve as identifiers for images linked to the todo item. Between 0 and 6 (inclusive) images can be linked to a todo item. This field will be omitted if there are no linked images. **Do not expose to end users in client responses.** Used to identify links between todo items and images. Cannot be updated after creation. Type: array of strings. Optional.
 
 **Example Todo Item:**
 
@@ -29,16 +29,15 @@ This server provides the ability to interface with a todo list. This todo list c
 
 ## Tools
 
-- `listTodos`: Returns all todo items. If linked images are not present in the conversation context, set `withImages` to `true` to also return linked images; otherwise, set `withImages` to `false`.
-- `getTodo`: Gets a todo item by id. Returns the requested todo item. If linked images are not present in the conversation context, set `withImages` to `true` to also return linked images; otherwise, set `withImages` to `false`.
+- `listTodos`: Returns all todo items and their linked images.
+- `getTodo`: Gets a todo item by id. Returns the requested todo item and its linked images.
 - `createTodo`: Creates a todo item and its linked images. Requires a description as input. Can optionally include a list of up to 6 external URLs for images. Each image must be smaller than 1MB. If no external URLs are provided, select between 0 and 6 (inclusive) images from `https://images.unsplash.com` appended with the query string value `?w=640&h=640&fit=max&auto=compress&q=50&fm=avif`. Only select images from `https://images.unsplash.com` that are relevant to the provided `description` field. If no relevant images exist, do not provide any images from Unsplash. Returns the created todo item and its linked images.
-- `updateTodo`: Updates a todo item by id. Only the `description` and `completed` fields can be updated. Returns the updated todo item. If linked images are not present in the conversation context, set `withImages` to `true` to also return linked images; otherwise, set `withImages` to `false`.
+- `updateTodo`: Updates a todo item by id. Only the `description` and `completed` fields can be updated. Returns the updated todo item and its linked images.
 - `deleteTodo`: Requires a todo item id as input. Deletes the requested todo item and its linked images. Returns a confirmation that the requested todo item and its linked images have been deleted.
-- `getImage`: Gets an image by id. Returns the requested image. If the linked todo item is not present in the conversation context, set `withTodo` to `true` to also return the linked todo item; otherwise, set `withTodo` to `false`.
+- `getImage`: Gets an image by id. Returns the requested image and its linked todo item.
 
 **Note:**
 
 - Fields marked as 'do not expose to end users in client responses' should not be shown in the UI unless required for linking.
-- If more than 6 images are provided, a descriptive error message will be returned.
 - If required fields are missing or invalid (e.g., description missing, description too long, too many images, image too large), a descriptive error message will be returned.
 - If a todo item or image is not found, a descriptive error message will be returned.
