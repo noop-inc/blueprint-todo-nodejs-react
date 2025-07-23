@@ -110,7 +110,7 @@ const structureImageContent = async imageId => {
   if (convertSize || convertFormat) {
     let transformer = sharp()
     if (convertSize) {
-      transformer = transformer.resize({ width: 640, height: 640, fit: sharp.fit.inside, withoutEnlargement: true })
+      transformer = transformer.resize({ width: 160, height: 160, fit: sharp.fit.inside, withoutEnlargement: true })
     }
     if (convertFormat) {
       transformer = transformer.toFormat('webp', { quality: 50, alphaQuality: 50, lossless: false, nearLossless: false, smartSubsample: false })
