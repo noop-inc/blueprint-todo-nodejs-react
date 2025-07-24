@@ -1,7 +1,7 @@
 import express from 'express'
 import morgan from 'morgan'
 import cors from 'cors'
-import { getServerAndTransport } from './mcp.js'
+import { handleMcpRequest, cleanupMcpServers } from './mcp.js'
 import { randomUUID } from 'node:crypto'
 import { log } from './utils.js'
 import { EOL } from 'node:os'
@@ -71,33 +71,11 @@ app.get('/favicon.ico', (req, res) => {
   res.status(204).end()
 })
 
-const mcpServers = new Set()
-const mcpTransports = new Set()
-
 // Handles MCP server requests
 app.post('/mcp', async (req, res) => {
   const requestId = req.headers['Todo-Request-Id'] || null
   try {
-    const { mcpServer, mcpTransport } = getServerAndTransport()
-    mcpServers.add(mcpServer)
-    mcpTransports.add(mcpTransport)
-    res.once('close', async () => {
-      log({ level: 'info', event: 'mcp.request.close', requestId })
-      try {
-        await mcpTransport.close()
-        mcpTransports.delete(mcpTransport)
-      } catch (error) {
-        log({ level: 'error', event: 'mcp.transport.close.error', error, requestId })
-      }
-      try {
-        await mcpServer.close()
-        mcpServers.delete(mcpServer)
-      } catch (error) {
-        log({ level: 'error', event: 'mcp.server.close.error', error, requestId })
-      }
-    })
-    await mcpServer.connect(mcpTransport)
-    await mcpTransport.handleRequest(req, res, req.body)
+    await handleMcpRequest(req, res)
   } catch (error) {
     log({ level: 'error', event: 'mcp.post.error', error, requestId })
     if (!res.headersSent) {
@@ -146,28 +124,7 @@ const server = app.listen(port, error => {
 
 process.once('SIGTERM', async () => {
   log({ level: 'info', event: 'mcp.server.signal', signal: 'SIGTERM' })
-  if (mcpTransports.size) {
-    log({ level: 'info', event: 'mcp.transports.cleanup' })
-    await Promise.all(Array.from(mcpTransports).map(async mcpTransport => {
-      try {
-        await mcpTransport.close()
-        mcpTransports.delete(mcpTransport)
-      } catch (error) {
-        log({ level: 'error', event: 'mcp.transports.cleanup.error', error })
-      }
-    }))
-  }
-  if (mcpServers.size) {
-    log({ level: 'info', event: 'mcp.servers.cleanup' })
-    await Promise.all(Array.from(mcpServers).map(async mcpServer => {
-      try {
-        await mcpServer.close()
-        mcpServers.delete(mcpServer)
-      } catch (error) {
-        log({ level: 'error', event: 'mcp.servers.cleanup.error', error })
-      }
-    }))
-  }
+  await cleanupMcpServers()
   server.close(error => {
     if (error) {
       log({ level: 'error', event: 'mcp.server.closed.error', error })

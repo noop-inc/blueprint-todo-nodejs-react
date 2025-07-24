@@ -396,8 +396,33 @@ const mcpTools = {
   }
 }
 
-export const getServerAndTransport = () => {
-  const mcpServer = new McpServer(
+const servers = new Map()
+const transports = new Map()
+
+const cleanup = async requestId => {
+  try {
+    const transport = transports.get(requestId)
+    if (transport) await transport.close()
+    transports.delete(requestId)
+  } catch (error) {
+    log({ level: 'error', event: 'mcp.transport.cleanup.error', error, requestId })
+  }
+  try {
+    const server = servers.get(requestId)
+    if (server) await server.close()
+    servers.delete(requestId)
+  } catch (error) {
+    log({ level: 'error', event: 'mcp.server.cleanup.error', error, requestId })
+  }
+}
+
+export const handleMcpRequest = async (req, res) => {
+  const requestId = req.headers['Todo-Request-Id'] || null
+  res.once('close', async () => {
+    log({ level: 'info', event: 'mcp.request.closed', requestId })
+    await cleanup(requestId)
+  })
+  const server = new McpServer(
     {
       name: 'noop-todo-app-mcp-server',
       title: 'Noop Todo App MCP Server',
@@ -407,11 +432,20 @@ export const getServerAndTransport = () => {
       instructions
     }
   )
+  servers.set(requestId, server)
   for (const [name, { config, handler }] of Object.entries(mcpTools)) {
-    mcpServer.registerTool(name, config, handlerWrapper(name, handler))
+    server.registerTool(name, config, handlerWrapper(name, handler))
   }
-  const mcpTransport = new StreamableHTTPServerTransport({
+  const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined
   })
-  return { mcpServer, mcpTransport }
+  transports.set(requestId, transport)
+  await server.connect(transport)
+  await transport.handleRequest(req, res, req.body)
+}
+
+export const cleanupMcpServers = async () => {
+  log({ level: 'info', event: 'mcp.servers.cleanup' })
+  await Promise.all(Array.from(transports.keys()).map(async requestId => await cleanup(requestId)))
+  await Promise.all(Array.from(servers.keys()).map(async requestId => await cleanup(requestId)))
 }
