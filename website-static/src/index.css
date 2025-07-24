@@ -10,7 +10,7 @@ body {
   background-color: var(--noop-dark-color);
 }
 
-#root {
+#app {
   background-color: var(--noop-bg-color);
   min-height: 100dvh;
   min-height: 100vh;

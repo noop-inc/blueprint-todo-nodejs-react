@@ -22,7 +22,6 @@ export default [
     files: ['**/*.jsx', '**/*.js', '**/*.cjs', '**/*.mjs'],
     ...js.configs.recommended
   },
-
   {
     files: ['**/*.jsx', '**/*.js', '**/*.cjs', '**/*.mjs'],
     ...reactPlugin.configs.flat.recommended
