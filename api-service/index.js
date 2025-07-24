@@ -123,7 +123,13 @@ app.get('/api/images/:imageId', async (req, res) => {
   try {
     const params = req.params
     const imageId = params.imageId
-    const response = await getObject(imageId)
+    let response
+    try {
+      response = await getObject(imageId)
+    } catch (error) {
+      if (error.code === 'NoSuchKey') throw new Error(`Image: ${imageId} not found.`)
+      throw error
+    }
     res.set('Content-Type', response.ContentType)
     response.Body.pipe(res)
   } catch (error) {
@@ -180,7 +186,7 @@ app.post('/api/todos', async (req, res) => {
       bb.on('field', (name, value) => {
         if (name === 'description') {
           if (!value?.length) {
-            return reject(new Error('Description is required'))
+            return reject(new Error('Description is required.'))
           }
           if (value.length > 256) {
             return reject(new Error('Description cannot exceed 256 characters.'))
@@ -222,6 +228,7 @@ app.get('/api/todos/:todoId', async (req, res) => {
     const params = req.params
     const todoId = params.todoId
     const item = await getItem(todoId)
+    if (!item?.id) throw new Error(`Todo item: ${todoId} not found.`)
     res.json(item)
   } catch (error) {
     log({ level: 'error', event: 'api.todo.get.error', error, requestId: req.headers['Todo-Request-Id'] })
@@ -247,10 +254,11 @@ app.put('/api/todos/:todoId', async (req, res) => {
     const params = req.params
     const todoId = params.todoId
     const existingItem = await getItem(todoId)
+    if (!existingItem?.id) throw new Error(`Todo item: ${todoId} not found.`)
     const body = req.body
     if ('description' in body) {
       if (!body.description?.length) {
-        throw new Error('Description is required')
+        throw new Error('Description is required.')
       }
       if (body.description.length > 256) {
         throw new Error('Description cannot exceed 256 characters.')
@@ -280,6 +288,7 @@ app.delete('/api/todos/:todoId', async (req, res) => {
     const todoId = params.todoId
     // Gets todo to be deleted from DynamoDB
     const item = await getItem(todoId)
+    if (!item?.id) throw new Error(`Todo item: ${todoId} not found.`)
     const images = item.images || []
     // If todo has associated images in S3, then delete those images
     await Promise.all([

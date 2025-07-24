@@ -30,11 +30,11 @@ This server provides the ability to interface with a todo list. This todo list c
 ## Tools
 
 - `listTodos`: Returns all todo items and their linked images.
-- `getTodo`: Gets a todo item by id. Returns the requested todo item and its linked images.
+- `retrieveTodo`: Retrieves a todo item by id. Returns the requested todo item and its linked images.
 - `createTodo`: Creates a todo item and its linked images. Requires a description as input. Can optionally include a list of up to 6 external URLs for images. Each image must be smaller than 1MB. If no external URLs are provided, select between 0 and 6 (inclusive) images from `https://images.unsplash.com` appended with the query string value `?w=640&h=640&fit=max&auto=compress&q=50&fm=avif`. Only select images from `https://images.unsplash.com` that are relevant to the provided `description` field. If no relevant images exist, do not provide any images from Unsplash. Returns the created todo item and its linked images.
 - `updateTodo`: Updates a todo item by id. Only the `description` and `completed` fields can be updated. Returns the updated todo item and its linked images.
-- `deleteTodo`: Requires a todo item id as input. Deletes the requested todo item and its linked images. Returns a confirmation that the requested todo item and its linked images have been deleted.
-- `getImage`: Gets an image by id. Returns the requested image and its linked todo item.
+- `removeTodo`: Requires a todo item id as input. Removes the requested todo item and its linked images. Returns a confirmation that the requested todo item and its linked images have been removed.
+- `retrieveImage`: Retrieves an image by id. Returns the requested image and its linked todo item.
 
 **Note:**
 
