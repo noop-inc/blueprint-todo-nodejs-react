@@ -61,14 +61,14 @@ const externalUrlToImageId = async externalUrl => {
   })
 }
 
-const ImageIdSchema = z.string().uuid().describe('Randomly generated version 4 UUID to serve as an identifier for an image linked to a todo item. Do not expose to end users in client responses. Use to identify links between todo items and images. Cannot be modified after creation.')
+const ImageIdSchema = z.string().uuid().describe('Randomly generated version 4 UUID to serve as an identifier for an image linked to a todo item. Do not expose to end users in client responses. Use to identify links between todo items and images. Not modifiable.')
 
 const TodoSchema = {
-  id: z.string().uuid().describe('Randomly generated version 4 UUID that serves as an identifier for the todo item. **Do not expose to end users in client responses.** Used to identify links between todo items and images. Cannot be modified after creation. Type: string.'),
-  description: z.string().min(1).max(256).describe('Description of the todo item. Can be modified after creation. Type: string. Maximum length: 256 characters.'),
-  created: z.number().int().describe('Unix timestamp in milliseconds representing when the todo item was created, relative to the Unix Epoch. Cannot be modified after creation. Type: integer.'),
-  completed: z.boolean().default(false).describe('Completion status of the todo item. Can be modified after creation. Type: boolean. Default: false.'),
-  images: z.array(ImageIdSchema).min(1).max(6).optional().describe('List of randomly generated version 4 UUIDs that serve as identifiers for images linked to the todo item. Between 0 and 6 (inclusive) images can be linked to a todo item. This field will be omitted if there are no linked images. **Do not expose to end users in client responses.** Used to identify links between todo items and images. Cannot be modified after creation. Type: array of strings. Optional.')
+  id: z.string().uuid().describe('Randomly generated version 4 UUID that serves as an identifier for the todo item. **Do not expose to end users in client responses.** Used to identify links between todo items and images. Not modifiable. Type: string.'),
+  description: z.string().min(1).max(256).describe('Description of the todo item. Modifiable. Type: string. Maximum length: 256 characters.'),
+  created: z.number().int().describe('Unix timestamp in milliseconds representing when the todo item was created, relative to the Unix Epoch. Not modifiable. Type: integer.'),
+  completed: z.boolean().default(false).describe('Completion status of the todo item. Modifiable. Type: boolean. Default: false.'),
+  images: z.array(ImageIdSchema).min(1).max(6).optional().describe('List of randomly generated version 4 UUIDs that serve as identifiers for images linked to the todo item. Between 0 and 6 (inclusive) images can be linked to a todo item. This field will be omitted if there are no linked images. **Do not expose to end users in client responses.** Used to identify links between todo items and images. Not modifiable. Type: array of strings. Optional.')
 }
 
 const jsonToText = json =>
@@ -133,7 +133,7 @@ const structureImageContent = async imageId => {
   return [
     {
       type: 'text',
-      text: `Below is image ${imageId}.`,
+      text: `Below is image ${imageId}`,
       annotations: {
         audience: ['assistant']
       }
@@ -235,7 +235,7 @@ const mcpTools = {
     },
     handler: async ({ todoId }) => {
       const item = await getItem(todoId)
-      if (!item?.id) throw new Error(`Todo item: ${todoId} not found.`)
+      if (!item?.id) throw new Error(`Todo item: ${todoId} not found`)
       const structuredContent = item
       const content = await structureTodoItemAndImageContent(item)
       return { content, structuredContent }
@@ -316,7 +316,7 @@ const mcpTools = {
         }
       }
       const existingItem = await getItem(todoId)
-      if (!existingItem?.id) throw new Error(`Todo item: ${todoId} not found.`)
+      if (!existingItem?.id) throw new Error(`Todo item: ${todoId} not found`)
       const updatedItem = { ...existingItem, ...body }
       const item = await putItem(updatedItem)
       const structuredContent = item
@@ -340,7 +340,7 @@ const mcpTools = {
     },
     handler: async ({ todoId }) => {
       const item = await getItem(todoId)
-      if (!item?.id) throw new Error(`Todo item: ${todoId} not found.`)
+      if (!item?.id) throw new Error(`Todo item: ${todoId} not found`)
       const images = item.images || []
       await Promise.all([
         deleteItem(todoId),

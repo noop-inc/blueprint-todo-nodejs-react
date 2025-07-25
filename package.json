@@ -20,11 +20,11 @@
   "author": "Noop Inc <hello@noop.dev>",
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
-    "@eslint/js": "^9.31.0",
+    "@eslint/js": "^9.32.0",
     "@eslint/json": "^0.13.1",
     "@eslint/markdown": "^7.1.0",
     "concurrently": "^9.2.0",
-    "eslint": "^9.31.0",
+    "eslint": "^9.32.0",
     "eslint-config-standard": "^17.1.0",
     "eslint-config-standard-jsx": "^11.0.0",
     "eslint-plugin-react": "^7.37.5",

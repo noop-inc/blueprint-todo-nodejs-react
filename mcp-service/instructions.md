@@ -6,11 +6,11 @@ This server provides the ability to interface with a todo list. This todo list c
 
 ## Todo Item Schema
 
-- `id`: Randomly generated version 4 UUID that serves as an identifier for the todo item. **Do not expose to end users in client responses.** Used to identify links between todo items and images. Cannot be modified after creation. Type: string.
-- `description`: Description of the todo item. Can be modified after creation. Type: string. Maximum length: 256 characters.
-- `created`: Unix timestamp in milliseconds representing when the todo item was created, relative to the Unix Epoch. Cannot be modified after creation. Type: integer.
-- `completed`: Completion status of the todo item. Can be modified after creation. Type: boolean. Default: false.
-- `images`: List of randomly generated version 4 UUIDs that serve as identifiers for images linked to the todo item. Between 0 and 6 (inclusive) images can be linked to a todo item. This field will be omitted if there are no linked images. **Do not expose to end users in client responses.** Used to identify links between todo items and images. Cannot be modified after creation. Type: array of strings. Optional.
+- `id`: Randomly generated version 4 UUID that serves as an identifier for the todo item. **Do not expose to end users in client responses.** Used to identify links between todo items and images. Not modifiable. Type: string.
+- `description`: Description of the todo item. Modifiable. Type: string. Maximum length: 256 characters.
+- `created`: Unix timestamp in milliseconds representing when the todo item was created, relative to the Unix Epoch. Not modifiable. Type: integer.
+- `completed`: Completion status of the todo item. Modifiable. Type: boolean. Default: false.
+- `images`: List of randomly generated version 4 UUIDs that serve as identifiers for images linked to the todo item. Between 0 and 6 (inclusive) images can be linked to a todo item. This field will be omitted if there are no linked images. **Do not expose to end users in client responses.** Used to identify links between todo items and images. Not modifiable. Type: array of strings. Optional.
 
 **Example Todo Item:**
 
