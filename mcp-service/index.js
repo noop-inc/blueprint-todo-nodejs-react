@@ -8,7 +8,6 @@ import { EOL } from 'node:os'
 
 morgan.token('requestId', req => req.headers['Todo-Request-Id'])
 morgan.token('requestBody', req => req.body)
-morgan.token('responseBody', (req, res) => res.body)
 
 const app = express()
 app.use((req, res, next) => {
@@ -17,28 +16,6 @@ app.use((req, res, next) => {
 })
 app.use(cors())
 app.use(express.json())
-
-app.use((req, res, next) => {
-  const originalSend = res.send.bind(res)
-  const originalJson = res.json.bind(res)
-  res.send = (...args) => {
-    try {
-      res.body = JSON.parse(JSON.stringify(args[0]))
-    } catch (error) {
-      res.body = null
-    }
-    originalSend(...args)
-  }
-  res.json = (...args) => {
-    try {
-      res.body = JSON.parse(JSON.stringify(args[0]))
-    } catch (error) {
-      res.body = null
-    }
-    originalJson(...args)
-  }
-  next()
-})
 
 app.use(morgan(
   (tokens, req, res) =>
@@ -62,7 +39,6 @@ app.use(morgan((tokens, req, res) =>
     status: parseFloat(tokens.status(req, res)),
     contentLength: parseFloat(tokens.res(req, res, 'content-length')),
     responseTime: parseFloat(tokens['response-time'](req, res)),
-    responseBody: tokens.responseBody(req, res) || null,
     requestId: tokens.requestId(req, res) || null
   })}${EOL}`
 ))
@@ -91,7 +67,7 @@ app.post('/mcp', async (req, res) => {
   }
 })
 
-app.get('/mcp', async (req, res) => {
+const handleNotAllowed = (req, res) => {
   res.status(405).json({
     jsonrpc: '2.0',
     error: {
@@ -100,18 +76,10 @@ app.get('/mcp', async (req, res) => {
     },
     id: null
   })
-})
+}
 
-app.delete('/mcp', async (req, res) => {
-  res.status(405).json({
-    jsonrpc: '2.0',
-    error: {
-      code: -32000,
-      message: 'Method not allowed'
-    },
-    id: null
-  })
-})
+app.get('/mcp', handleNotAllowed)
+app.delete('/mcp', handleNotAllowed)
 
 const port = 3000
 const server = app.listen(port, error => {

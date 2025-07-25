@@ -17,7 +17,7 @@ const streamToImageId = async (stream, filename) => {
   }
   const buffer = Buffer.concat(chunks)
   if (buffer.length > (1024 ** 2)) {
-    throw new Error(`Image with filename: ${filename} is larger than 1MB. Image must be 1MB or smaller.`)
+    throw new Error(`Image with filename: ${filename} is larger than 1MB - Image must be 1MB or smaller`)
   }
   const metadata = await sharp(buffer).metadata()
   const convertFormat = !(
@@ -53,7 +53,6 @@ const streamToImageId = async (stream, filename) => {
 
 morgan.token('requestId', req => req.headers['Todo-Request-Id'])
 morgan.token('requestBody', req => req.body)
-morgan.token('responseBody', (req, res) => res.body)
 
 const app = express()
 app.use((req, res, next) => {
@@ -62,28 +61,6 @@ app.use((req, res, next) => {
 })
 app.use(cors())
 app.use(express.json())
-
-app.use((req, res, next) => {
-  const originalSend = res.send.bind(res)
-  const originalJson = res.json.bind(res)
-  res.send = (...args) => {
-    try {
-      res.body = JSON.parse(JSON.stringify(args[0]))
-    } catch (error) {
-      res.body = null
-    }
-    originalSend(...args)
-  }
-  res.json = (...args) => {
-    try {
-      res.body = JSON.parse(JSON.stringify(args[0]))
-    } catch (error) {
-      res.body = null
-    }
-    originalJson(...args)
-  }
-  next()
-})
 
 app.use(morgan(
   (tokens, req, res) =>
@@ -107,7 +84,6 @@ app.use(morgan((tokens, req, res) =>
     status: parseFloat(tokens.status(req, res)),
     contentLength: parseFloat(tokens.res(req, res, 'content-length')),
     responseTime: parseFloat(tokens['response-time'](req, res)),
-    responseBody: tokens.responseBody(req, res) || null,
     requestId: tokens.requestId(req, res) || null
   })}${EOL}`
 ))
@@ -127,7 +103,7 @@ app.get('/api/images/:imageId', async (req, res) => {
     try {
       response = await getObject(imageId)
     } catch (error) {
-      if (error.code === 'NoSuchKey') throw new Error(`Image: ${imageId} not found.`)
+      if (error.code === 'NoSuchKey') throw new Error(`Image: ${imageId} not found`)
       throw error
     }
     res.set('Content-Type', response.ContentType)
@@ -179,17 +155,17 @@ app.post('/api/todos', async (req, res) => {
     await new Promise((resolve, reject) => {
       bb.on('file', (name, file, { filename, mimeType }) => {
         if (!mimeType.startsWith('image/')) {
-          return reject(new Error(`Invalid content type for image with filename: ${filename}. Expected image/* but got ${mimeType}.`))
+          return reject(new Error(`Invalid content type for image with filename: ${filename} - Expected image/* but got ${mimeType}`))
         }
         imagePromises.push(streamToImageId(file, filename))
       })
       bb.on('field', (name, value) => {
         if (name === 'description') {
           if (!value?.length) {
-            return reject(new Error('Description is required.'))
+            return reject(new Error('Description is required'))
           }
           if (value.length > 256) {
-            return reject(new Error('Description cannot exceed 256 characters.'))
+            return reject(new Error('Description cannot exceed 256 characters'))
           }
         }
         body[name] = value
@@ -228,7 +204,7 @@ app.get('/api/todos/:todoId', async (req, res) => {
     const params = req.params
     const todoId = params.todoId
     const item = await getItem(todoId)
-    if (!item?.id) throw new Error(`Todo item: ${todoId} not found.`)
+    if (!item?.id) throw new Error(`Todo item: ${todoId} not found`)
     res.json(item)
   } catch (error) {
     log({ level: 'error', event: 'api.todo.get.error', error, requestId: req.headers['Todo-Request-Id'] })
@@ -254,14 +230,14 @@ app.put('/api/todos/:todoId', async (req, res) => {
     const params = req.params
     const todoId = params.todoId
     const existingItem = await getItem(todoId)
-    if (!existingItem?.id) throw new Error(`Todo item: ${todoId} not found.`)
+    if (!existingItem?.id) throw new Error(`Todo item: ${todoId} not found`)
     const body = req.body
     if ('description' in body) {
       if (!body.description?.length) {
-        throw new Error('Description is required.')
+        throw new Error('Description is required')
       }
       if (body.description.length > 256) {
-        throw new Error('Description cannot exceed 256 characters.')
+        throw new Error('Description cannot exceed 256 characters')
       }
     }
     const newItem = { ...existingItem, ...body }
@@ -288,7 +264,7 @@ app.delete('/api/todos/:todoId', async (req, res) => {
     const todoId = params.todoId
     // Gets todo to be deleted from DynamoDB
     const item = await getItem(todoId)
-    if (!item?.id) throw new Error(`Todo item: ${todoId} not found.`)
+    if (!item?.id) throw new Error(`Todo item: ${todoId} not found`)
     const images = item.images || []
     // If todo has associated images in S3, then delete those images
     await Promise.all([

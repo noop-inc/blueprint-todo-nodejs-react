@@ -15,19 +15,19 @@ const instructions = await readFile(new URL('./instructions.md', import.meta.url
 const externalUrlToImageId = async externalUrl => {
   const response = await fetch(externalUrl)
   if (!response.ok) {
-    throw new Error(`Failed to fetch image from external URL: ${externalUrl}.`)
+    throw new Error(`Failed to fetch image from external URL: ${externalUrl}`)
   }
   const mimeType = response.headers.get('content-type')
   if (!mimeType) {
-    throw new Error(`No content type found for image at URL: ${externalUrl}.`)
+    throw new Error(`No content type found for image at URL: ${externalUrl}`)
   }
   if (!mimeType.startsWith('image/')) {
-    throw new Error(`Invalid content type for image at URL: ${externalUrl}. Expected image/* but got ${mimeType}.`)
+    throw new Error(`Invalid content type for image at URL: ${externalUrl} - Expected image/* but got ${mimeType}`)
   }
   const arrayBuffer = await response.arrayBuffer()
   const buffer = Buffer.from(arrayBuffer)
   if (buffer.length > (1024 ** 2)) {
-    throw new Error(`Image at URL: ${externalUrl} is larger than 1MB. Image must be 1MB or smaller.`)
+    throw new Error(`Image at URL: ${externalUrl} is larger than 1MB - Image must be 1MB or smaller`)
   }
   const metadata = await sharp(buffer).metadata()
   const convertFormat = !(
@@ -61,14 +61,14 @@ const externalUrlToImageId = async externalUrl => {
   })
 }
 
-const ImageIdSchema = z.string().uuid().describe('Randomly generated version 4 UUID to serve as an identifier for an image linked to a todo item. Do not expose to end users in client responses. Use to identify links between todo items and images. Cannot be updated after creation.')
+const ImageIdSchema = z.string().uuid().describe('Randomly generated version 4 UUID to serve as an identifier for an image linked to a todo item. Do not expose to end users in client responses. Use to identify links between todo items and images. Cannot be modified after creation.')
 
 const TodoSchema = {
-  id: z.string().uuid().describe('Randomly generated version 4 UUID that serves as an identifier for the todo item. **Do not expose to end users in client responses.** Used to identify links between todo items and images. Cannot be updated after creation. Type: string.'),
-  description: z.string().min(1).max(256).describe('Description of the todo item. Can be updated after creation. Type: string. Maximum length: 256 characters.'),
-  created: z.number().int().describe('Unix timestamp in milliseconds representing when the todo item was created, relative to the Unix Epoch. Cannot be updated after creation. Type: integer.'),
-  completed: z.boolean().default(false).describe('Completion status of the todo item. Can be updated after creation. Type: boolean. Default: false.'),
-  images: z.array(ImageIdSchema).min(1).max(6).optional().describe('List of randomly generated version 4 UUIDs that serve as identifiers for images linked to the todo item. Between 0 and 6 (inclusive) images can be linked to a todo item. This field will be omitted if there are no linked images. **Do not expose to end users in client responses.** Used to identify links between todo items and images. Cannot be updated after creation. Type: array of strings. Optional.')
+  id: z.string().uuid().describe('Randomly generated version 4 UUID that serves as an identifier for the todo item. **Do not expose to end users in client responses.** Used to identify links between todo items and images. Cannot be modified after creation. Type: string.'),
+  description: z.string().min(1).max(256).describe('Description of the todo item. Can be modified after creation. Type: string. Maximum length: 256 characters.'),
+  created: z.number().int().describe('Unix timestamp in milliseconds representing when the todo item was created, relative to the Unix Epoch. Cannot be modified after creation. Type: integer.'),
+  completed: z.boolean().default(false).describe('Completion status of the todo item. Can be modified after creation. Type: boolean. Default: false.'),
+  images: z.array(ImageIdSchema).min(1).max(6).optional().describe('List of randomly generated version 4 UUIDs that serve as identifiers for images linked to the todo item. Between 0 and 6 (inclusive) images can be linked to a todo item. This field will be omitted if there are no linked images. **Do not expose to end users in client responses.** Used to identify links between todo items and images. Cannot be modified after creation. Type: array of strings. Optional.')
 }
 
 const jsonToText = json =>
@@ -100,7 +100,7 @@ const structureImageContent = async imageId => {
   try {
     response = await getObject(imageId)
   } catch (error) {
-    if (error.code === 'NoSuchKey') throw new Error(`Image: ${imageId} not found.`)
+    if (error.code === 'NoSuchKey') throw new Error(`Image: ${imageId} not found`)
     throw error
   }
 
@@ -133,7 +133,7 @@ const structureImageContent = async imageId => {
   return [
     {
       type: 'text',
-      text: `Below is image ${imageId}`,
+      text: `Below is image ${imageId}.`,
       annotations: {
         audience: ['assistant']
       }
@@ -165,18 +165,7 @@ const handlerWrapper = (name, handler) => async (...args) => {
   try {
     log({ level: 'info', event: 'mcp.tool.start', tool: name, params: args[0], requestId })
     const result = await handler(...args)
-    let content = result?.content || null
-    const structuredContent = result?.structuredContent || null
-    if (content) {
-      content = content.map(subContent => {
-        if (subContent.type === 'image') {
-          subContent = { ...subContent }
-          subContent.data = null
-        }
-        return subContent
-      })
-    }
-    log({ level: 'info', event: 'mcp.tool.end', tool: name, result: { content, structuredContent }, requestId })
+    log({ level: 'info', event: 'mcp.tool.end', tool: name, requestId })
     return result
   } catch (error) {
     log({ level: 'error', event: 'mcp.tool.error', tool: name, error, requestId })
@@ -252,10 +241,10 @@ const mcpTools = {
       return { content, structuredContent }
     }
   },
-  createTodo: {
+  addTodo: {
     config: {
-      title: 'Create Todo Item',
-      description: 'Creates a todo item and its linked images. Only the `description` and `images` fields can be provided. Returns the created todo item and its linked images.',
+      title: 'Add Todo Item',
+      description: 'Adds a todo item and its linked images. Only the `description` and `images` fields can be provided. Returns the added todo item and its linked images.',
       inputSchema: {
         description: TodoSchema.description,
         images: z.array(z.string().url().describe('External URL for image linked to the todo item.')).min(1).max(6).optional().describe('List of external URLs for images linked to todo item. Each image must be smaller than 1MB. If no external URLs are provided, select between 0 and 6 (inclusive) images from `https://images.unsplash.com` appended with the query string value `?w=640&h=640&fit=max&auto=compress&q=50&fm=avif`. Only select images from `https://images.unsplash.com` that are relevant to the provided `description` field. If no relevant images exist, do not provide any images from Unsplash.')
@@ -266,20 +255,20 @@ const mcpTools = {
         idempotentHint: false,
         openWorldHint: false,
         readOnlyHint: false,
-        title: 'Create Todo Item'
+        title: 'Add Todo Item'
       }
     },
     handler: async ({ description, images: files }) => {
       if (!description?.length) {
-        throw new Error('Description is required.')
+        throw new Error('Description is required')
       }
       if (description.length > 256) {
-        throw new Error('Description cannot exceed 256 characters.')
+        throw new Error('Description cannot exceed 256 characters')
       }
       const images = []
       if (files) {
         if (files.length > 6) {
-          throw new Error('Cannot link more than 6 images to todo item.')
+          throw new Error('Cannot link more than 6 images to todo item')
         }
         await Promise.all(
           files.map(async file => {
@@ -299,10 +288,10 @@ const mcpTools = {
       return { content, structuredContent }
     }
   },
-  updateTodo: {
+  modifyTodo: {
     config: {
-      title: 'Update Todo Item',
-      description: 'Updates a todo item by id. Only the `description` and `completed` fields can be updated. Returns the updated todo item and its linked images.',
+      title: 'Modify Todo Item',
+      description: 'Modifies a todo item by id. Only the `description` and `completed` fields can be modified. Returns the modified todo item and its linked images.',
       inputSchema: {
         todoId: TodoSchema.id,
         description: TodoSchema.description.optional(),
@@ -314,16 +303,16 @@ const mcpTools = {
         idempotentHint: false,
         openWorldHint: false,
         readOnlyHint: false,
-        title: 'Update Todo Item'
+        title: 'Modify Todo Item'
       }
     },
     handler: async ({ todoId, ...body }) => {
       if ('description' in body) {
         if (!body.description?.length) {
-          throw new Error('Description is required.')
+          throw new Error('Description is required')
         }
         if (body.description.length > 256) {
-          throw new Error('Description cannot exceed 256 characters.')
+          throw new Error('Description cannot exceed 256 characters')
         }
       }
       const existingItem = await getItem(todoId)
@@ -361,14 +350,14 @@ const mcpTools = {
         content: [
           {
             type: 'text',
-            text: `Todo item ${todoId} has been deleted`,
+            text: `Todo item ${todoId} has been removed`,
             annotations: {
               audience: ['assistant']
             }
           },
           ...images.map(imageId => ({
             type: 'text',
-            text: `Image ${imageId} has been deleted`,
+            text: `Image ${imageId} has been removed`,
             annotations: {
               audience: ['assistant']
             }
@@ -454,7 +443,7 @@ export const handleMcpRequest = async (req, res) => {
 }
 
 export const cleanupMcpServers = async () => {
-  log({ level: 'info', event: 'mcp.servers.cleanup' })
+  log({ level: 'info', event: 'mcp.server.cleanup' })
   await Promise.all(Array.from(transports.keys()).map(async requestId => await cleanup(requestId)))
   await Promise.all(Array.from(servers.keys()).map(async requestId => await cleanup(requestId)))
 }
