@@ -199,6 +199,8 @@ const App = () => {
                           className='form-input edit-description'
                           type='text'
                           autoComplete='off'
+                          minLength='1'
+                          maxLength='256'
                           onBlur={() => setEditId(null)}
                         />
                         <input
@@ -210,7 +212,7 @@ const App = () => {
                     </div>
                   </div>
                   {
-                    images && images.length &&
+                    !!images?.length &&
                       <div
                         className='image-preview-grid'
                       >

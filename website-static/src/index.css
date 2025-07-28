@@ -16,7 +16,8 @@ body {
   min-height: 100vh;
 }
 
-.todo-header, .todo-list{
+.todo-header,
+.todo-list {
   padding: 1rem;
   margin: auto;
 }
@@ -74,7 +75,7 @@ body {
   gap: 0.5rem;
 }
 
-.todo-list .todo-item .todo-description  {
+.todo-list .todo-item .todo-description {
   position: relative;
 }
 
@@ -244,7 +245,7 @@ body {
   color: var(--bs-danger);
 }
 
-input.form-input[type="text"] {
+input.form-input[type='text'] {
   border: var(--bs-gray-400) solid;
   border-radius: 0.25rem;
   padding: 0.25rem 0.5rem;
@@ -345,7 +346,7 @@ input.form-input::placeholder {
 }
 
 #form-file::file-selector-button,
-#form-submit  {
+#form-submit {
   color: #fff;
   border-radius: 0.25rem;
   padding: 0.25rem 0.5rem;
@@ -355,7 +356,7 @@ input.form-input::placeholder {
   margin-left: auto;
 }
 
-input.form-input[type="file"] {
+input.form-input[type='file'] {
   font-size: 1rem;
 }
 
@@ -369,7 +370,7 @@ button.form-button {
 
 input.form-input::file-selector-button:hover,
 input.form-input::file-selector-button:focus,
-input.form-input[type="file"]:focus-visible,
+input.form-input[type='file']:focus-visible,
 button.form-button:hover,
 button.form-button:focus,
 a.form-link:hover,

@@ -1,5 +1,5 @@
 export const handleFormatImages = (newImages, existingImages) => {
-  const filterValidSize = [...newImages].filter(file => file.size <= 1000000)
+  const filterValidSize = [...newImages].filter(file => file.size <= (1024 ** 2))
   const nextImageSize = newImages.length !== filterValidSize.length
   const nextImageCount = (existingImages.length + filterValidSize.length) > 6
   const sliceLength = filterValidSize.slice(0, 6 - existingImages.length)

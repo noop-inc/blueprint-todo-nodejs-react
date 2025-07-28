@@ -1,11 +1,27 @@
+const throwError = async response => {
+  if (response.headers.get('content-type') === 'application/json') {
+    const body = await response.json()
+    throw body
+  } else {
+    const message = await response.text()
+    throw new Error(message)
+  }
+}
+
+const handleFetch = async (...args) => {
+  const response = await window.fetch(...args)
+  if (!response.ok) await throwError(response)
+  return response
+}
+
 export const fetchAllTodos = async () => {
-  const res = await window.fetch('/api/todos')
-  return await res.json()
+  const response = await handleFetch('/api/todos')
+  return await response.json()
 }
 
 export const fetchTodo = async id => {
-  const res = await window.fetch(`/api/todos/${id}`)
-  return await res.json()
+  const response = await handleFetch(`/api/todos/${id}`)
+  return await response.json()
 }
 
 export const createTodo = async (description, images) => {
@@ -14,15 +30,15 @@ export const createTodo = async (description, images) => {
   images.forEach(({ file }) => {
     formData.append('image', file)
   })
-  const res = await window.fetch(
+  const response = await handleFetch(
     '/api/todos/',
     { method: 'POST', body: formData }
   )
-  return await res.json()
+  return await response.json()
 }
 
 export const updateTodo = async item => {
-  const res = await window.fetch(
+  const response = await handleFetch(
     `/api/todos/${item.id}`,
     {
       method: 'PUT',
@@ -32,13 +48,13 @@ export const updateTodo = async item => {
       }
     }
   )
-  return await res.json()
+  return await response.json()
 }
 
 export const deleteTodo = async id => {
-  const res = await window.fetch(
+  const response = await handleFetch(
     `/api/todos/${id}`,
     { method: 'DELETE' }
   )
-  return await res.json()
+  return await response.json()
 }

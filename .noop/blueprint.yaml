@@ -1,0 +1,115 @@
+components:
+  - name: TodoApi
+    type: service
+    image: node:22-alpine
+    root: api-service
+    port: 3000
+    build:
+      steps:
+        - directory: /api-service
+        - copy: package*.json
+          destination: ./
+        - run: npm ci --omit=dev
+        - image: node:22-alpine
+          stage: api-server
+        - directory: /api-service
+        - copy: /api-service
+          from: main
+        - copy: [index.js, dynamodb.js, s3.js, utils.js]
+    runtime:
+      command: node index.js
+      cpu: 0.25
+      memory: 320
+      resources:
+        - TodoItems
+        - TodoUploads
+      variables:
+        NODE_ENV: production
+        AWS_REGION:
+          $env: region
+        DYNAMODB_TABLE:
+          $resources: TodoItems.tableName
+        DYNAMODB_ENDPOINT:
+          $resources: TodoItems.endpoint
+        S3_BUCKET:
+          $resources: TodoUploads.bucket
+        S3_ENDPOINT:
+          $resources: TodoUploads.endpoint
+
+  - name: TodoMcp
+    type: service
+    image: node:22-alpine
+    root: mcp-service
+    port: 3000
+    build:
+      steps:
+        - directory: /mcp-service
+        - copy: package*.json
+          destination: ./
+        - run: npm ci --omit=dev
+        - image: node:22-alpine
+          stage: mcp-server
+        - directory: /mcp-service
+        - copy: /mcp-service
+          from: main
+        - copy:
+            [index.js, instructions.md, mcp.js, dynamodb.js, s3.js, utils.js]
+    runtime:
+      command: node index.js
+      cpu: 0.25
+      memory: 320
+      resources:
+        - TodoItems
+        - TodoUploads
+      variables:
+        NODE_ENV: production
+        AWS_REGION:
+          $env: region
+        DYNAMODB_TABLE:
+          $resources: TodoItems.tableName
+        DYNAMODB_ENDPOINT:
+          $resources: TodoItems.endpoint
+        S3_BUCKET:
+          $resources: TodoUploads.bucket
+        S3_ENDPOINT:
+          $resources: TodoUploads.endpoint
+
+  - name: TodoWebsite
+    type: static
+    image: node:22-alpine
+    root: website-static
+    hosting:
+      spa: true
+    build:
+      steps:
+        - directory: /website-static
+        - copy: package*.json
+          destination: ./
+        - run: npm ci
+        - copy: index.html
+        - copy: vite.config.js
+        - copy: public/
+        - copy: src/
+        - run: npm run build
+        - directory: dist/
+
+routes:
+  - pattern: /api/**
+    target:
+      component: TodoApi
+
+  - pattern: /mcp/**
+    target:
+      component: TodoMcp
+
+  - target:
+      component: TodoWebsite
+
+resources:
+  - name: TodoItems
+    type: dynamodb
+    hashKeyName: id
+    hashKeyType: S
+
+  - name: TodoUploads
+    type: s3
