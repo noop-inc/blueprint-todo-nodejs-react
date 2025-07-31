@@ -18,8 +18,6 @@ components:
         - copy: [index.js, dynamodb.js, s3.js, utils.js]
     runtime:
       command: node index.js
-      cpu: 0.25
-      memory: 320
       resources:
         - TodoItems
         - TodoUploads
@@ -56,8 +54,6 @@ components:
             [index.js, instructions.md, mcp.js, dynamodb.js, s3.js, utils.js]
     runtime:
       command: node index.js
-      cpu: 0.25
-      memory: 320
       resources:
         - TodoItems
         - TodoUploads
